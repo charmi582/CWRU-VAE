@@ -9,7 +9,7 @@
 
 ---
 
-## 📌 研究摘要
+## 研究摘要
 
 本專案提出一種**純無監督**的軸承故障偵測方法：
 
@@ -20,7 +20,7 @@
 
 ---
 
-## 📁 專案結構
+## 專案結構
 
 ```
 cwru_vae/
@@ -42,7 +42,7 @@ cwru_vae/
 
 ---
 
-## 🔬 資料集：CWRU Bearing Dataset
+## 資料集：CWRU Bearing Dataset
 
 | 項目 | 說明 |
 |------|------|
@@ -65,7 +65,7 @@ cwru_vae/
 
 ---
 
-## ⚙️ 資料前處理
+## 資料前處理
 
 ```
 原始訊號 (12 kHz)
@@ -78,7 +78,7 @@ cwru_vae/
 
 ---
 
-## 🧠 VAE 模型架構
+## VAE 模型架構
 
 ### Encoder
 
@@ -120,7 +120,7 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 
 ---
 
-## 🏋️ 訓練設定
+## 訓練設定
 
 | 超參數 | 值 |
 |--------|-----|
@@ -139,7 +139,7 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 
 ---
 
-## 📊 實驗結果
+## 實驗結果
 
 ### 最終指標
 
@@ -164,7 +164,7 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 
 ---
 
-## 📈 視覺化圖表
+## 視覺化圖表
 
 | 圖表 | 說明 |
 |------|------|
@@ -181,7 +181,7 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 
 ---
 
-## 🚀 快速開始
+## 快速開始
 
 ### 1. 安裝相依套件
 
@@ -222,7 +222,7 @@ python make_pptx_v2.py
 
 ---
 
-## 🔍 異常偵測原理
+## 異常偵測原理
 
 ```
 訓練階段（僅正常資料）：
@@ -238,7 +238,7 @@ python make_pptx_v2.py
 
 ---
 
-## 📋 系統需求
+## 系統需求
 
 - Python 3.9+
 - PyTorch 1.9+（支援 CUDA / Apple MPS / CPU）
@@ -247,13 +247,13 @@ python make_pptx_v2.py
 
 ---
 
-## 📄 授權
+## 授權
 
 本專案採用 [MIT License](LICENSE)。
 
 ---
 
-## 📚 參考文獻
+## 參考文獻
 
 1. Kingma, D.P. & Welling, M. (2014). Auto-Encoding Variational Bayes. *ICLR 2014*.
 2. Smith, W.A. & Randall, R.B. (2015). Rolling element bearing diagnostics using the Case Western Reserve University data. *Mechanical Systems and Signal Processing, 64*, 100–131.
