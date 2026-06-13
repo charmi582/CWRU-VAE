@@ -9,14 +9,18 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{array}
 \usepackage{xcolor}
 \usepackage{float}
 \usepackage[section]{placeins}
 \usepackage{cite}
 \usepackage{url}
+\usepackage{xurl}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
 \graphicspath{{./}{results/plots/}}
+\Urlmuskip=0mu plus 1mu
+\emergencystretch=2em
 
 \begin{document}
 
@@ -120,9 +124,13 @@ Decoder 使用全連接層與四層一維轉置卷積重建 1,024 點訊號。
 
 損失函數為：
 \begin{equation}
-  \mathcal{L}=
-  \mathrm{MSE}(x,\hat{x})\times1024+
-  \beta D_{\mathrm{KL}}\left(q(\mathbf{z}|x)\|\mathcal{N}(\mathbf{0},\mathbf{I})\right),
+  \begin{aligned}
+  \mathcal{L}={}&
+  \mathrm{MSE}(x,\hat{x})\times1024 \\
+  &+\beta D_{\mathrm{KL}}\!\left(
+  q(\mathbf{z}|x)\,\|\,\mathcal{N}(\mathbf{0},\mathbf{I})
+  \right),
+  \end{aligned}
 \end{equation}
 其中 $\beta=1.0$。
 推論時使用 deterministic latent mean 進行重建，異常分數定義為每個視窗之平均重建 MSE。
@@ -163,10 +171,13 @@ Decoder 使用全連接層與四層一維轉置卷積重建 1,024 點訊號。
 多數方法在 CWRU 上皆達到接近滿分，說明該資料集在目前前處理設定下高度可分。
 因此，本文不將此表解讀為 VAE 效能突破，而是作為流程可重現性與基準比較之參考。
 
-\begin{table}[ht]
+\begin{table}[!t]
 \centering
 \caption{各方法於 CWRU 設定下之異常偵測 AUC-ROC}
 \label{tab:baseline}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{方法} & \textbf{AUC-ROC} & \textbf{特徵工程} & \textbf{故障標籤} \\
@@ -178,6 +189,7 @@ AE & $1.0000\pm0.0000$ & 否 & 否 \\
 VAE & $1.0000\pm0.0000$ & 否 & 否 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 \subsection{Load-wise 泛化驗證}
@@ -185,13 +197,16 @@ VAE & $1.0000\pm0.0000$ & 否 & 否 \\
 每一折保留一個負載條件作為未見測試集，VAE 只使用其餘負載條件之正常資料訓練。
 表~\ref{tab:loadwise} 顯示結果。
 
-\begin{table}[ht]
+\begin{table}[!t]
 \centering
 \caption{CWRU load-wise split 泛化驗證}
 \label{tab:loadwise}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Held-out load} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{Precision} & \textbf{F1} & \textbf{FAR} \\
+\textbf{Load} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{Prec.} & \textbf{F1} & \textbf{FAR} \\
 \midrule
 0 & 1.0000 & 1.0000 & 74.55\% & 85.42\% & 14.74\% \\
 1 & 1.0000 & 1.0000 & 99.54\% & 99.77\% & 0.11\% \\
@@ -199,6 +214,7 @@ VAE & $1.0000\pm0.0000$ & 否 & 否 \\
 3 & 1.0000 & 1.0000 & 18.21\% & 30.80\% & 99.16\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 四個未見負載條件下，ROC-AUC 與 PR-AUC 皆維持 1.0000，表示異常分數排序能力仍高。
@@ -209,13 +225,16 @@ VAE & $1.0000\pm0.0000$ & 否 & 否 \\
 為處理 load-wise split 暴露出的閾值轉移問題，本文比較多種校準策略，包括 train normal P95/P99、validation normal P95/P99、median-MAD robust threshold，以及使用目標負載 10\% 正常資料之 calibration。
 表~\ref{tab:calibration} 顯示跨四個 held-out load 之平均結果。
 
-\begin{table}[ht]
+\begin{table}[!t]
 \centering
 \caption{跨負載閾值校準策略之平均結果}
 \label{tab:calibration}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcc}
 \toprule
-\textbf{Calibration strategy} & \textbf{Mean F1} & \textbf{Mean FAR} \\
+\textbf{校準策略} & \textbf{Mean F1} & \textbf{Mean FAR} \\
 \midrule
 Train normal P95 & 61.40\% & 54.32\% \\
 Validation normal P95 & 78.89\% & 28.55\% \\
@@ -224,6 +243,7 @@ Target-load 10\% normal P95 & 90.88\% & 6.13\% \\
 Target-load 10\% normal P99 & 98.05\% & 1.14\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 結果顯示，若部署時可蒐集少量目標負載正常資料，閾值可被有效校準。
@@ -235,10 +255,13 @@ CWRU 為實驗室資料集，訊號品質較高。
 為模擬真實工廠雜訊，本文於 load-wise 測試集加入不同 SNR 高斯噪音。
 表~\ref{tab:noise} 顯示 clean、30、20、10、5 dB 下之平均 F1 與 FAR。
 
-\begin{table}[ht]
+\begin{table}[!t]
 \centering
 \caption{噪音魯棒性分析}
 \label{tab:noise}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\resizebox{0.82\columnwidth}{!}{%
 \begin{tabular}{lcc}
 \toprule
 \textbf{SNR} & \textbf{Mean F1} & \textbf{Mean FAR} \\
@@ -250,6 +273,7 @@ Clean & 78.89\% & 28.55\% \\
 5 dB & 35.08\% & 100.00\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 在 30 與 20 dB 下，F1-score 與 clean setting 接近。
@@ -261,18 +285,22 @@ Clean & 78.89\% & 28.55\% \\
 AE 使用與 VAE 對齊的卷積 encoder/decoder，僅移除 KL 散度與重參數化。
 表~\ref{tab:aevsvae} 顯示在 load-wise split 下之平均結果。
 
-\begin{table}[ht]
+\begin{table}[!t]
 \centering
 \caption{AE 與 VAE 於 load-wise split 之比較}
 \label{tab:aevsvae}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-\textbf{模型} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{Mean F1} & \textbf{Mean FAR} & \textbf{Mean MR} \\
+\textbf{模型} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{F1} & \textbf{FAR} & \textbf{MR} \\
 \midrule
 VAE & $1.0000\pm0.0000$ & $1.0000\pm0.0000$ & 78.89\% & 28.55\% & 0.00\% \\
 AE & $1.0000\pm0.0000$ & $1.0000\pm0.0000$ & 80.52\% & 26.52\% & 0.00\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 結果顯示，在目前 CWRU load-wise 設定下，AE 與 VAE 的排序指標皆達滿分，VAE 並未在 AUC 上顯著優於 AE。
