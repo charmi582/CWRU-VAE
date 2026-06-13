@@ -1,0 +1,11 @@
+dataset,model,calibration_scope,threshold_strategy,roc_auc,pr_auc,f1,false_alarm_rate,miss_rate,interpretation
+CWRU,iforest,strict-protocol mean,train_p95,0.9793,0.9478,0.8519,0.0647,0.1018,High ranking and practical threshold behavior under CWRU strict splits.
+CWRU,iforest,strict-protocol mean,val_p95,0.9793,0.9478,0.8491,0.0696,0.1005,Validation calibration is comparable to train-normal calibration on CWRU.
+CWRU,iforest,strict-protocol mean,train_p99,0.9793,0.9478,0.8340,0.0098,0.2555,Conservative threshold lowers false alarms but increases misses.
+CWRU,iforest,strict-protocol mean,val_p99,0.9793,0.9478,0.8377,0.0147,0.2397,Validation P99 also trades fewer false alarms for more misses.
+CWRU,iforest,strict-protocol mean,train_mad5,0.9793,0.9478,0.8319,0.0076,0.2643,Robust MAD is conservative on CWRU.
+Paderborn,iforest,expanded-protocol mean,train_p95,0.7854,0.8359,0.5216,0.1218,0.5935,Practical operating point but external data remain much harder than CWRU.
+Paderborn,iforest,expanded-protocol mean,val_p95,0.7854,0.8359,0.5200,0.1194,0.5950,Validation P95 is stable relative to train P95 on expanded Paderborn.
+Paderborn,iforest,expanded-protocol mean,train_p99,0.7854,0.8359,0.0527,0.0332,0.9685,Too conservative for expanded Paderborn and misses most faults.
+Paderborn,iforest,expanded-protocol mean,val_p99,0.7854,0.8359,0.1184,0.0377,0.9256,Still too conservative under external operating and bearing shifts.
+Paderborn,iforest,expanded-protocol mean,train_mad5,0.7854,0.8359,0.0303,0.0242,0.9811,Robust MAD threshold is unsuitable for this expanded external setting.

@@ -184,6 +184,51 @@ Pilot training status:
   superior; the stronger claim is that the proposed pipeline exposes when
   dataset-specific calibration and classical baselines are necessary.
 
+Expanded Paderborn main-experiment status:
+
+- Completed on `K001-K006`, `KA01`, `KA03`, `KA05`, `KA07`, `KI01`, `KI03`,
+  `KI05`, and `KI07`.
+- Main segmentation uses an 8192-point window and 4096-point stride.
+- To keep this first expanded pass tractable, four files per operating
+  condition are used.
+- Protocols completed:
+  - `condition-wise`
+  - `bearing-wise`
+  - `file-wise`
+- Output files:
+  - `results/journal_external_paderborn/paderborn_expanded_8192_iforest_metrics.csv`
+  - `results/journal_external_paderborn/paderborn_expanded_8192_iforest_summary.md`
+  - `results/journal_external_paderborn/paderborn_expanded_threshold_summary.csv`
+  - `results/journal_external_paderborn/paderborn_expanded_protocol_threshold_summary.csv`
+  - `results/journal_external_paderborn/dataset_calibration_comparison.md`
+
+Reproduction command:
+
+```bash
+python paderborn_external_experiments.py \
+  --window-size 8192 \
+  --stride 4096 \
+  --bearings K001 K002 K003 K004 K005 K006 KA01 KA03 KA05 KA07 KI01 KI03 KI05 KI07 \
+  --protocols condition-wise bearing-wise file-wise \
+  --models iforest \
+  --max-files-per-condition 4 \
+  --n-file-splits 6 \
+  --output-name paderborn_expanded_8192_iforest_metrics.csv
+```
+
+Expanded Paderborn interpretation:
+
+- The expanded external dataset contains 13,704 windows in this tractable pass:
+  5,874 normal windows and 7,830 fault windows.
+- The overall Isolation Forest ranking quality is moderate rather than
+  CWRU-perfect: ROC-AUC 0.7854 and PR-AUC 0.8359.
+- `train_p95` and `val_p95` are the practical threshold policies. They keep
+  false alarm rates near 0.12, but miss rates remain high, near 0.59.
+- `train_p99`, `val_p99`, and MAD-based thresholds are too conservative on the
+  expanded Paderborn setting and miss most fault windows.
+- This should be presented as evidence that dataset-specific and
+  protocol-specific calibration is necessary for external deployment.
+
 ### 6. Federated Normal-Only Deployment Extension
 
 Implemented:
@@ -236,12 +281,14 @@ Interpretation:
    is slower.
 4. Add external dataset loader. **Done for Paderborn scaffold.**
 5. Run Paderborn external validation experiments after data download/extraction.
-   **Pilot done on a 4-bearing subset.**
-6. Run federated normal-only deployment experiments. **Initial FedAvg pilot
+   **Pilot and expanded 14-bearing Isolation Forest pass are done.**
+6. Run expanded Paderborn deep baselines after the threshold-calibration section
+   is finalized.
+7. Run federated normal-only deployment experiments. **Initial FedAvg pilot
    done.**
-7. Run cross-dataset experiments if signal preprocessing assumptions remain
+8. Run cross-dataset experiments if signal preprocessing assumptions remain
    comparable.
-8. Rewrite journal manuscript around threshold calibration and deployment
+9. Rewrite journal manuscript around threshold calibration and deployment
    stability.
 
 ## Recommended Main Claim

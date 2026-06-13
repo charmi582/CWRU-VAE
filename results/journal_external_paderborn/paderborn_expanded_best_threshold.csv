@@ -1,0 +1,4 @@
+protocol,model,threshold_strategy,roc_auc,pr_auc,f1,precision,recall,false_alarm_rate,miss_rate
+paderborn-bearing-wise,iforest,train_p95,0.8318,0.7421,0.4712,0.7633,0.3983,0.0502,0.6017
+paderborn-condition-wise,iforest,val_p95,0.7896,0.8177,0.5817,0.8783,0.4543,0.1254,0.5457
+paderborn-file-wise,iforest,train_p95,0.7207,0.973,0.5537,0.9726,0.3899,0.2158,0.6101

@@ -558,3 +558,49 @@ Important framing:
 - This extension supports a privacy-preserving deployment story; it should not
   be claimed as an automatic accuracy improvement without local-only and
   centralized comparisons.
+
+---
+
+## Journal Extension: Expanded Paderborn Main Experiment
+
+The external Paderborn validation has been expanded beyond the pilot subset.
+The current main external-dataset pass uses:
+
+- Healthy bearings: `K001-K006`
+- Artificial faults: `KA01`, `KA03`, `KA05`, `KA07`
+- Real faults: `KI01`, `KI03`, `KI05`, `KI07`
+- Main Paderborn window size: 8192 points
+- Stride: 4096 points
+- Protocols: `condition-wise`, `bearing-wise`, `file-wise`
+
+Reproduce the tractable expanded Isolation Forest pass:
+
+```bash
+python paderborn_external_experiments.py \
+  --window-size 8192 \
+  --stride 4096 \
+  --bearings K001 K002 K003 K004 K005 K006 KA01 KA03 KA05 KA07 KI01 KI03 KI05 KI07 \
+  --protocols condition-wise bearing-wise file-wise \
+  --models iforest \
+  --max-files-per-condition 4 \
+  --n-file-splits 6 \
+  --output-name paderborn_expanded_8192_iforest_metrics.csv
+```
+
+Main outputs:
+
+- `results/journal_external_paderborn/paderborn_expanded_8192_iforest_metrics.csv`
+- `results/journal_external_paderborn/paderborn_expanded_8192_iforest_summary.md`
+- `results/journal_external_paderborn/paderborn_expanded_threshold_summary.csv`
+- `results/journal_external_paderborn/paderborn_expanded_protocol_threshold_summary.csv`
+- `results/journal_external_paderborn/dataset_calibration_comparison.md`
+
+Main finding:
+
+- CWRU remains easier than Paderborn under strict and external protocols.
+- Paderborn results support making threshold calibration a core journal
+  contribution.
+- `train_p95` and `val_p95` are practical threshold policies; `p99` and MAD
+  thresholds are too conservative for expanded Paderborn.
+- Numeric thresholds should not be transferred directly from CWRU to Paderborn;
+  calibration should be dataset-specific and protocol-specific.
