@@ -435,3 +435,51 @@ python make_pptx_v2.py
 2. Smith, W.A. & Randall, R.B. (2015). Rolling element bearing diagnostics using the Case Western Reserve University data. *Mechanical Systems and Signal Processing, 64*, 100–131.
 3. Loparo, K.A. (2012). Bearings Vibration Data Set. *Case Western Reserve University*.
 4. An, J. & Cho, S. (2015). Variational Autoencoder based Anomaly Detection using Reconstruction Probability. *SNU Data Mining Center*.
+---
+
+## Journal Extension: Paderborn External Validation
+
+The journal extension now includes a Paderborn Bearing Dataset integration
+scaffold. Raw external data are intentionally ignored by git.
+
+Official source:
+
+- https://mb.uni-paderborn.de/kat/forschung/bearing-datacenter/data-sets-and-download
+
+Default local layout:
+
+```text
+results/external/paderborn/raw/   # official .rar archives
+results/external/paderborn/mat/   # extracted .mat files
+```
+
+Pilot external-validation run after data are available:
+
+```bash
+python paderborn_external_experiments.py \
+  --protocols condition-wise bearing-wise file-wise \
+  --models vae cnn-ae iforest \
+  --bearings K001 K002 K003 KA01 KA03 KI01 KI03 \
+  --max-files-per-bearing 4
+```
+
+If 7-Zip is installed locally, selected official archives can be downloaded and
+extracted directly:
+
+```bash
+python paderborn_external_experiments.py \
+  --download --extract \
+  --protocols condition-wise bearing-wise file-wise \
+  --models vae cnn-ae iforest
+```
+
+Outputs:
+
+- `results/journal_external_paderborn/paderborn_metrics.csv`
+- `results/journal_external_paderborn/models/*.pt`
+
+Supported Paderborn protocols:
+
+- `condition-wise`: hold out one operating condition.
+- `bearing-wise`: hold out one damaged bearing state plus a normal test subset.
+- `file-wise`: hold out complete measurement files.

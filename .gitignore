@@ -1,5 +1,6 @@
 # ── 原始資料（自動下載，不需上傳）──────────────────────
 results/data/
+results/external/
 *.mat
 
 # ── 模型權重（檔案較大，可選擇上傳）──────────────────────
@@ -9,6 +10,7 @@ results/data/
 results/models/load_wise_*.pt
 results/models/ae_load_wise_*.pt
 results/journal_strict_cwru/models/
+results/journal_external_paderborn/models/
 
 # ── PPT/Office 暫存檔 ──────────────────────────────────
 ~$*.pptx

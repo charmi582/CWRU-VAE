@@ -123,15 +123,50 @@ Selection criteria:
 Recommended first integration target: Paderborn, because it is a bearing dataset
 with well-known fault categories and is frequently used in fault diagnosis.
 
+Initial integration implemented:
+
+- `paderborn_data_loader.py`
+- `paderborn_external_experiments.py`
+
+The Paderborn loader supports the official Bearing DataCenter archive layout.
+It converts extracted MATLAB files into the same `(X, y_binary, y_multi,
+metadata)` format used by CWRU, with metadata fields for operating condition,
+bearing code, measurement file, and label name.
+
+Suggested pilot command after downloading and extracting a subset:
+
+```bash
+python paderborn_external_experiments.py \
+  --protocols condition-wise bearing-wise file-wise \
+  --models vae cnn-ae iforest \
+  --bearings K001 K002 K003 KA01 KA03 KI01 KI03 \
+  --max-files-per-bearing 4
+```
+
+If 7-Zip is available locally, the script can also download and extract the
+selected official archives:
+
+```bash
+python paderborn_external_experiments.py \
+  --download --extract \
+  --protocols condition-wise bearing-wise file-wise \
+  --models vae cnn-ae iforest
+```
+
+Raw Paderborn archives and extracted MATLAB files are intentionally ignored by
+git because the external dataset is several GB.
+
 ## Formal Experiment Order
 
 1. Run CWRU strict protocols with `iforest` first to validate all splits.
 2. Run `vae` and `cnn-ae` for all CWRU strict protocols.
 3. Run `lstm-ae` only after the first two deep baselines are stable, because it
    is slower.
-4. Add external dataset loader.
-5. Run cross-dataset experiments.
-6. Rewrite journal manuscript around threshold calibration and deployment
+4. Add external dataset loader. **Done for Paderborn scaffold.**
+5. Run Paderborn external validation experiments after data download/extraction.
+6. Run cross-dataset experiments if signal preprocessing assumptions remain
+   comparable.
+7. Rewrite journal manuscript around threshold calibration and deployment
    stability.
 
 ## Recommended Main Claim
