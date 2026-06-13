@@ -301,6 +301,49 @@ Interpretation:
   recall, so future work should compare FedAvg with local-only and centralized
   normal-only baselines before making any performance claim.
 
+Formal federated fuzzy comparison:
+
+- Implemented in `federated_fuzzy_experiment.py`.
+- The experiment compares:
+  - `local-only`: each client trains its own normal-only model.
+  - `centralized`: one model trains on pooled normal windows.
+  - `federated`: clients train locally and share only model weights through
+    FedAvg.
+- The fuzzy health-index layer is applied to both `cnn-ae` and `vae`
+  reconstruction scores, making the fuzzy decision layer model-agnostic.
+- Fault windows are audit-only and are not used for local, centralized, or
+  federated training.
+- Main outputs:
+  - `results/federated_fuzzy/federated_fuzzy_metrics.csv`
+  - `results/federated_fuzzy/federated_fuzzy_summary.csv`
+  - `results/federated_fuzzy/federated_fuzzy_client_stability.csv`
+  - `results/federated_fuzzy/federated_fuzzy_client_detail.csv`
+  - `results/federated_fuzzy/federated_fuzzy_summary.md`
+
+Current Paderborn formal pass:
+
+```bash
+python federated_fuzzy_experiment.py \
+  --models cnn-ae vae \
+  --rounds 2 \
+  --local-epochs 1 \
+  --centralized-epochs 2 \
+  --max-files-per-condition 1
+```
+
+Initial result interpretation:
+
+- FedAvg should not be claimed as an automatic accuracy improvement.
+- For CNN-AE with `fuzzy_warning_as_alarm_hi50`, local-only currently gives the
+  strongest mean F1, while federated training provides the privacy-preserving
+  collaborative reference.
+- Client stability is analyzed through the standard deviation of false alarm
+  rate, miss rate, uncertain rate, and fuzzy health gap.
+- VAE is unstable in the low-epoch federated setting, which supports reporting
+  model choice and client heterogeneity as practical deployment concerns.
+- This completes the missing comparison that reviewers usually expect for
+  federated learning: local-only versus centralized versus federated.
+
 ## Formal Experiment Order
 
 1. Run CWRU strict protocols with `iforest` first to validate all splits.

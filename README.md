@@ -641,3 +641,43 @@ Main finding:
   and uncertain-region analysis than for direct F1 improvement.
 - This supports the journal framing that threshold calibration should be paired
   with interpretable alarm levels rather than a single rigid threshold.
+
+---
+
+## Journal Extension: Federated Fuzzy Deployment
+
+The formal federated fuzzy experiment compares three deployment modes:
+
+- `local-only`: each client trains on its own normal windows.
+- `centralized`: normal windows are pooled into one shared training set.
+- `federated`: clients train locally and share only model weights through
+  FedAvg.
+
+Run the current Paderborn comparison:
+
+```bash
+python federated_fuzzy_experiment.py \
+  --models cnn-ae vae \
+  --rounds 2 \
+  --local-epochs 1 \
+  --centralized-epochs 2 \
+  --max-files-per-condition 1
+```
+
+Outputs:
+
+- `results/federated_fuzzy/federated_fuzzy_metrics.csv`
+- `results/federated_fuzzy/federated_fuzzy_summary.csv`
+- `results/federated_fuzzy/federated_fuzzy_client_stability.csv`
+- `results/federated_fuzzy/federated_fuzzy_client_detail.csv`
+- `results/federated_fuzzy/federated_fuzzy_summary.md`
+
+Main finding:
+
+- FedAvg is a privacy-preserving deployment option, but it should not be
+  claimed as an automatic accuracy improvement.
+- Local-only, centralized, and federated results must be reported together.
+- Client stability is evaluated with false alarm rate, miss rate, uncertain
+  rate, and fuzzy health-gap variation.
+- The fuzzy decision layer now supports both VAE and CNN-AE reconstruction
+  scores.
