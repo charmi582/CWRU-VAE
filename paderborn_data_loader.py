@@ -85,6 +85,14 @@ def extract_paderborn_archives(
         raise FileNotFoundError(f"No .rar archives found in {raw_dir}")
 
     seven_zip = shutil.which("7z") or shutil.which("7za")
+    if seven_zip is None:
+        for candidate in (
+            Path("C:/Program Files/7-Zip/7z.exe"),
+            Path("C:/Program Files (x86)/7-Zip/7z.exe"),
+        ):
+            if candidate.exists():
+                seven_zip = str(candidate)
+                break
     tar = shutil.which("tar")
     if not seven_zip and not tar:
         raise RuntimeError(
@@ -200,6 +208,7 @@ def load_paderborn_with_metadata(
     mat_dir: Path = PADERBORN_MAT_DIR,
     bearings: tuple[str, ...] | None = DEFAULT_BEARINGS,
     max_files_per_bearing: int | None = None,
+    max_files_per_condition: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """Load extracted Paderborn MATLAB files as windowed anomaly data."""
     mat_paths = sorted(mat_dir.rglob("*.mat"))
@@ -216,6 +225,7 @@ def load_paderborn_with_metadata(
         )
 
     per_bearing_seen: dict[str, int] = {}
+    per_condition_seen: dict[tuple[str, str], int] = {}
     segments, y_bin, y_multi = [], [], []
     files, conditions, bearings_seen, measurements, label_names = [], [], [], [], []
     label_to_id = {"Healthy": 0, "Fault_KA": 1, "Fault_KI": 2, "Fault_KB": 3, "Fault": 4}
@@ -225,7 +235,12 @@ def load_paderborn_with_metadata(
         seen = per_bearing_seen.get(bearing, 0)
         if max_files_per_bearing is not None and seen >= max_files_per_bearing:
             continue
+        condition_key = (bearing, condition)
+        condition_seen = per_condition_seen.get(condition_key, 0)
+        if max_files_per_condition is not None and condition_seen >= max_files_per_condition:
+            continue
         per_bearing_seen[bearing] = seen + 1
+        per_condition_seen[condition_key] = condition_seen + 1
 
         signal = _extract_paderborn_vibration(path)
         if signal is None or len(signal) < WINDOW_SIZE:

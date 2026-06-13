@@ -251,6 +251,7 @@ def run(
     models: list[str],
     bearings: tuple[str, ...],
     max_files_per_bearing: int | None,
+    max_files_per_condition: int | None,
     max_epochs: int,
     patience: int,
     seed: int,
@@ -269,6 +270,7 @@ def run(
         mat_dir=mat_dir,
         bearings=bearings,
         max_files_per_bearing=max_files_per_bearing,
+        max_files_per_condition=max_files_per_condition,
     )
     X = normalize_per_sample(X_raw)
     y = y_raw
@@ -336,6 +338,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--bearings", nargs="+", default=list(DEFAULT_BEARINGS))
     parser.add_argument("--max-files-per-bearing", type=int, default=None)
+    parser.add_argument("--max-files-per-condition", type=int, default=None)
     parser.add_argument("--max-epochs", type=int, default=N_EPOCHS)
     parser.add_argument("--patience", type=int, default=PATIENCE)
     parser.add_argument("--seed", type=int, default=42)
@@ -353,6 +356,7 @@ if __name__ == "__main__":
         models=args.models,
         bearings=tuple(args.bearings),
         max_files_per_bearing=args.max_files_per_bearing,
+        max_files_per_condition=args.max_files_per_condition,
         max_epochs=args.max_epochs,
         patience=args.patience,
         seed=args.seed,

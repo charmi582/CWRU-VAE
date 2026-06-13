@@ -138,9 +138,9 @@ Suggested pilot command after downloading and extracting a subset:
 ```bash
 python paderborn_external_experiments.py \
   --protocols condition-wise bearing-wise file-wise \
-  --models vae cnn-ae iforest \
-  --bearings K001 K002 K003 KA01 KA03 KI01 KI03 \
-  --max-files-per-bearing 4
+  --models vae cnn-ae lstm-ae iforest \
+  --bearings K001 K002 KA01 KI01 \
+  --max-files-per-condition 2
 ```
 
 If 7-Zip is available locally, the script can also download and extract the
@@ -150,11 +150,24 @@ selected official archives:
 python paderborn_external_experiments.py \
   --download --extract \
   --protocols condition-wise bearing-wise file-wise \
-  --models vae cnn-ae iforest
+  --models vae cnn-ae lstm-ae iforest \
+  --bearings K001 K002 KA01 KI01 \
+  --max-files-per-condition 2
 ```
 
 Raw Paderborn archives and extracted MATLAB files are intentionally ignored by
 git because the external dataset is several GB.
+
+Pilot training status:
+
+- Completed on `K001`, `K002`, `KA01`, and `KI01`, using two files per operating
+  condition.
+- Outputs:
+  - `results/journal_external_paderborn/paderborn_metrics.csv`
+  - `results/journal_external_paderborn/paderborn_pilot_summary.md`
+- The pilot result is substantially harder than CWRU. This should be framed as
+  an important journal finding: CWRU can show near-perfect ranking, but external
+  validation exposes cross-dataset transfer and threshold calibration limits.
 
 ## Formal Experiment Order
 
@@ -164,6 +177,7 @@ git because the external dataset is several GB.
    is slower.
 4. Add external dataset loader. **Done for Paderborn scaffold.**
 5. Run Paderborn external validation experiments after data download/extraction.
+   **Pilot done on a 4-bearing subset.**
 6. Run cross-dataset experiments if signal preprocessing assumptions remain
    comparable.
 7. Rewrite journal manuscript around threshold calibration and deployment

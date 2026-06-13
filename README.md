@@ -460,7 +460,7 @@ python paderborn_external_experiments.py \
   --protocols condition-wise bearing-wise file-wise \
   --models vae cnn-ae iforest \
   --bearings K001 K002 K003 KA01 KA03 KI01 KI03 \
-  --max-files-per-bearing 4
+  --max-files-per-condition 2
 ```
 
 If 7-Zip is installed locally, selected official archives can be downloaded and
@@ -470,16 +470,28 @@ extracted directly:
 python paderborn_external_experiments.py \
   --download --extract \
   --protocols condition-wise bearing-wise file-wise \
-  --models vae cnn-ae iforest
+  --models vae cnn-ae lstm-ae iforest \
+  --bearings K001 K002 KA01 KI01 \
+  --max-files-per-condition 2
 ```
 
 Outputs:
 
 - `results/journal_external_paderborn/paderborn_metrics.csv`
 - `results/journal_external_paderborn/models/*.pt`
+- `results/journal_external_paderborn/paderborn_pilot_summary.md`
 
 Supported Paderborn protocols:
 
 - `condition-wise`: hold out one operating condition.
 - `bearing-wise`: hold out one damaged bearing state plus a normal test subset.
 - `file-wise`: hold out complete measurement files.
+
+Pilot result note:
+
+- A 4-bearing Paderborn pilot has been run with `K001`, `K002`, `KA01`, and
+  `KI01`, using two files per operating condition.
+- The pilot loaded 16,070 windows and produced 200 metric rows.
+- Unlike CWRU, the external subset is not trivially separable; the result should
+  be discussed as evidence that CWRU-only evaluation overestimates deployment
+  readiness.

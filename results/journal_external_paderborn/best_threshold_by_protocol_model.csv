@@ -1,0 +1,13 @@
+protocol,model,threshold_strategy,roc_auc,pr_auc,f1,precision,recall,false_alarm_rate,miss_rate
+paderborn-bearing-wise,cnn-ae,train_p95,0.4111,0.6269,0.0628,0.3099,0.035,0.1799,0.965
+paderborn-bearing-wise,iforest,train_p95,0.7667,0.847,0.2791,0.832,0.178,0.0514,0.822
+paderborn-bearing-wise,lstm-ae,train_p95,0.525,0.6874,0.0463,0.5546,0.0241,0.048,0.9759
+paderborn-bearing-wise,vae,train_p95,0.4473,0.6457,0.0768,0.3553,0.0432,0.1217,0.9568
+paderborn-condition-wise,cnn-ae,train_p95,0.4128,0.4159,0.0983,0.1467,0.0914,0.2479,0.9086
+paderborn-condition-wise,iforest,train_p95,0.7196,0.7373,0.377,0.7853,0.2685,0.1434,0.7315
+paderborn-condition-wise,lstm-ae,val_p95,0.5468,0.4998,0.0599,0.3655,0.033,0.0525,0.967
+paderborn-condition-wise,vae,train_p95,0.4244,0.4214,0.1325,0.1845,0.1304,0.2996,0.8696
+paderborn-file-wise,cnn-ae,train_p95,0.5789,0.8385,0.093,0.8132,0.0532,0.1147,0.9468
+paderborn-file-wise,iforest,val_p95,0.704,0.8832,0.4034,0.9083,0.2822,0.1401,0.7178
+paderborn-file-wise,lstm-ae,val_p95,0.6558,0.8625,0.0622,0.8206,0.0324,0.0341,0.9676
+paderborn-file-wise,vae,train_p95,0.5467,0.8257,0.1007,0.8057,0.0605,0.1493,0.9395
