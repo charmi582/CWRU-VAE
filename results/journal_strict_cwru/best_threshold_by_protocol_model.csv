@@ -1,0 +1,13 @@
+protocol,model,threshold_strategy,roc_auc,pr_auc,f1,precision,recall,false_alarm_rate,miss_rate
+fault-size-wise,cnn-ae,val_p99,1.0,1.0,0.9774,0.9558,1.0,0.0196,0.0
+fault-size-wise,iforest,train_p95,0.9841,0.966,0.8809,0.8635,0.9036,0.0604,0.0964
+fault-size-wise,lstm-ae,val_p99,1.0,1.0,0.9924,0.985,1.0,0.0065,0.0
+fault-size-wise,vae,val_p99,1.0,1.0,0.9702,0.9423,1.0,0.0262,0.0
+file-wise,cnn-ae,val_p99,1.0,1.0,0.8127,0.7656,1.0,0.2544,0.0
+file-wise,iforest,train_p95,0.977,0.9405,0.8416,0.7923,0.8984,0.0662,0.1016
+file-wise,lstm-ae,train_p99,0.9974,0.9808,0.8685,0.8276,1.0,0.2489,0.0
+file-wise,vae,val_p99,1.0,1.0,0.8238,0.7803,1.0,0.2283,0.0
+load-wise,cnn-ae,val_p99,1.0,1.0,0.8253,0.7849,1.0,0.2289,0.0
+load-wise,iforest,train_p95,0.9781,0.9415,0.8404,0.7938,0.8938,0.0662,0.1062
+load-wise,lstm-ae,train_p99,0.9987,0.9887,0.8661,0.8256,1.0,0.2489,0.0
+load-wise,vae,val_p99,1.0,1.0,0.8274,0.7898,1.0,0.2294,0.0

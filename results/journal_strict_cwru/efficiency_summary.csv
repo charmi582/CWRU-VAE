@@ -1,0 +1,5 @@
+model,inference_ms_per_window_cpu,model_size_mb,param_count
+cnn-ae,1.6273,16.3574,4287265.0
+iforest,0.0,0.0,300.0
+lstm-ae,0.8932,0.2086,54689.0
+vae,1.3855,16.3887,4295489.0

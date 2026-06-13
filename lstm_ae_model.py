@@ -17,12 +17,16 @@ class LSTMAE(nn.Module):
         latent_dim: int = LATENT_DIM,
         hidden_dim: int = 64,
         num_layers: int = 1,
+        downsample_factor: int = 8,
     ):
         super().__init__()
         self.input_size = input_size
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.downsample_factor = downsample_factor
+        self.seq_len = input_size // downsample_factor
+        self.pool = nn.AvgPool1d(kernel_size=downsample_factor, stride=downsample_factor)
 
         self.encoder = nn.LSTM(
             input_size=1,
@@ -41,12 +45,19 @@ class LSTMAE(nn.Module):
         self.output = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor):
-        seq = x.transpose(1, 2)
+        pooled = self.pool(x)
+        seq = pooled.transpose(1, 2)
         _, (h_n, _) = self.encoder(seq)
         z = self.to_latent(h_n[-1])
-        dec_seed = self.from_latent(z).unsqueeze(1).repeat(1, self.input_size, 1)
+        dec_seed = self.from_latent(z).unsqueeze(1).repeat(1, self.seq_len, 1)
         dec_out, _ = self.decoder(dec_seed)
-        x_hat = self.output(dec_out).transpose(1, 2)
+        x_hat_low = self.output(dec_out).transpose(1, 2)
+        x_hat = F.interpolate(
+            x_hat_low,
+            size=self.input_size,
+            mode="linear",
+            align_corners=False,
+        )
         return x_hat, z, None
 
     def loss_function(self, x, x_hat, *_):

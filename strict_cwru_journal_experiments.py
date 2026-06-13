@@ -24,7 +24,6 @@ import os
 from dataclasses import asdict
 
 import numpy as np
-from sklearn.model_selection import GroupKFold
 
 from ae_model import ConvAE
 from config import BETA, LATENT_DIM, N_EPOCHS, PATIENCE, WINDOW_SIZE
@@ -99,18 +98,34 @@ def build_fault_size_splits(y: np.ndarray, metadata: dict[str, np.ndarray], seed
         yield "fault-size-wise", size, train_normal_mask, test_mask
 
 
-def build_file_splits(y: np.ndarray, metadata: dict[str, np.ndarray], n_splits: int):
+def build_file_splits(y: np.ndarray, metadata: dict[str, np.ndarray], n_splits: int, seed: int):
+    """Build file-wise folds with both normal and fault files in every test set.
+
+    Plain GroupKFold can produce folds containing only fault files because CWRU
+    has only four normal baseline files. For anomaly detection, each test fold
+    must contain normal windows for FAR and fault windows for MR. This custom
+    split holds out one normal file per fold and distributes fault files across
+    those folds.
+    """
     files = metadata["file"].astype(str)
-    splitter = GroupKFold(n_splits=min(n_splits, len(np.unique(files))))
-    dummy = np.zeros((len(y), 1), dtype=np.float32)
-    for fold, (train_idx, test_idx) in enumerate(splitter.split(dummy, groups=files), start=1):
-        train_normal_mask = np.zeros_like(y, dtype=bool)
-        train_normal_mask[train_idx] = y[train_idx] == 0
+    unique_files = np.array(sorted(np.unique(files)))
+    normal_files = [f for f in unique_files if np.all(y[files == f] == 0)]
+    fault_files = [f for f in unique_files if np.any(y[files == f] == 1)]
+
+    rng = np.random.default_rng(seed)
+    fault_files = list(rng.permutation(fault_files))
+    n_folds = min(n_splits, len(normal_files))
+    fault_chunks = np.array_split(fault_files, n_folds)
+
+    for fold in range(n_folds):
+        heldout_files = [normal_files[fold]] + list(fault_chunks[fold])
         test_mask = np.zeros_like(y, dtype=bool)
-        test_mask[test_idx] = True
+        for fname in heldout_files:
+            test_mask |= files == fname
+        train_normal_mask = (~test_mask) & (y == 0)
         if (y[test_mask] == 0).sum() == 0 or (y[test_mask] == 1).sum() == 0:
             continue
-        yield "file-wise", f"fold{fold}", train_normal_mask, test_mask
+        yield "file-wise", f"fold{fold + 1}", train_normal_mask, test_mask
 
 
 def _rows_for_scores(
@@ -257,7 +272,7 @@ def run(
     if "fault-size-wise" in protocols:
         split_builders.extend(build_fault_size_splits(y, metadata, seed=seed))
     if "file-wise" in protocols:
-        split_builders.extend(build_file_splits(y, metadata, n_splits=n_file_splits))
+        split_builders.extend(build_file_splits(y, metadata, n_splits=n_file_splits, seed=seed))
 
     rows: list[EvalRow] = []
     for protocol, heldout_group, train_normal_mask, test_mask in split_builders:
