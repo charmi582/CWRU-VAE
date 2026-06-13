@@ -90,6 +90,34 @@ The journal paper should present threshold calibration as a central finding:
 > AUC evaluates ranking, but false alarm rate and miss rate expose whether a
 > threshold transfers across loads, files, fault sizes, and noise levels.
 
+Fuzzy decision-layer extension:
+
+- Implemented in `fuzzy_health_index_experiment.py`.
+- The fuzzy layer uses validation-normal score anchors P50, P90, P95, and P99.
+- P95 is treated as the warning center; P99 is treated as high-confidence fault
+  membership.
+- The output is a fuzzy health index in `[0, 1]` plus three practical decision
+  policies:
+  - `hard_val_p95`
+  - `fuzzy_warning_as_alarm_hi50`
+  - `fuzzy_fault_only_hi75`
+- This extension should be framed as a calibrated decision layer that exposes
+  warning and uncertain regions, not as a replacement for anomaly-score models.
+
+Current fuzzy result summary:
+
+- CWRU:
+  - `hard_val_p95`: F1 0.8491, FAR 0.0696, miss rate 0.1005.
+  - `fuzzy_fault_only_hi75`: F1 0.8557, FAR 0.0331, miss rate 0.1722.
+  - Interpretation: high-confidence fuzzy alarms reduce false alarms but accept
+    more missed early/weak alarms.
+- Paderborn:
+  - `hard_val_p95`: F1 0.5200, FAR 0.1194, miss rate 0.5950.
+  - `fuzzy_fault_only_hi75`: F1 0.3911, FAR 0.0683, miss rate 0.7212.
+  - Interpretation: expanded Paderborn exposes a large gray zone; fuzzy health
+    indexing is most useful for graded warnings and calibration diagnostics, not
+    as a claim of automatic F1 improvement.
+
 ### 4. Deployment Analysis
 
 Implemented in strict deep-model runs:

@@ -604,3 +604,40 @@ Main finding:
   thresholds are too conservative for expanded Paderborn.
 - Numeric thresholds should not be transferred directly from CWRU to Paderborn;
   calibration should be dataset-specific and protocol-specific.
+
+---
+
+## Journal Extension: Fuzzy Health Index
+
+A fuzzy decision layer has been added on top of the anomaly-score model. It uses
+validation-normal score anchors to convert a scalar anomaly score into a graded
+health index.
+
+Current implementation:
+
+```bash
+python fuzzy_health_index_experiment.py
+```
+
+Outputs:
+
+- `results/fuzzy_health_index/fuzzy_health_index_metrics.csv`
+- `results/fuzzy_health_index/fuzzy_health_index_summary.csv`
+- `results/fuzzy_health_index/fuzzy_policy_summary.csv`
+- `results/fuzzy_health_index/fuzzy_health_index_summary.md`
+
+Fuzzy design:
+
+- P50, P90, P95, and P99 are estimated from validation-normal scores.
+- P95 is treated as the warning center.
+- P99 is treated as high-confidence fault membership.
+- The health index is reported in `[0, 1]`.
+
+Main finding:
+
+- On CWRU, high-confidence fuzzy fault alarms reduce false alarms, but increase
+  missed alarms.
+- On expanded Paderborn, fuzzy health indexing is more useful for graded warning
+  and uncertain-region analysis than for direct F1 improvement.
+- This supports the journal framing that threshold calibration should be paired
+  with interpretable alarm levels rather than a single rigid threshold.
