@@ -1,0 +1,364 @@
+% TCSE / journal extended revised version
+% Overleaf: pdfLaTeX is supported. Keep all figures in the same folder
+% or keep the results/plots/ path and upload that folder.
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{CJKutf8}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+\graphicspath{{./}{results/plots/}}
+
+\begin{document}
+\begin{CJK}{UTF8}{bkai}
+
+\title{面向工業設備健康監測之可重現無監督異常偵測軟體流程：\\
+以 VAE 軸承振動分析為例\\
+\large A Reproducible Unsupervised Anomaly Detection Software Pipeline for Industrial Equipment Health Monitoring: A VAE-Based Bearing Vibration Analysis Case Study}
+
+\author{
+\IEEEauthorblockN{張家軒\IEEEauthorrefmark{1}，張俊隆\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}
+國立勤益科技大學人工智慧應用工程系\\
+Department of Artificial Intelligence Applications Engineering, National Chin-Yi University of Technology\\
+Email: h927889932@gmail.com, VincentChang0304@ncut.edu.tw}
+}
+
+\maketitle
+
+\begin{abstract}
+工業設備健康監測長期面臨故障資料稀少、標注成本高昂、資料分布高度不平衡，以及實驗流程不易重現等挑戰。
+多數監督式方法雖可在標準資料集上取得良好辨識效果，但在真實工廠環境中，正常資料通常遠多於故障資料，且故障類型往往無法事先完整蒐集。
+因此，本研究設計並開源一套可重現的無監督異常偵測軟體流程，以變分自編碼器（Variational Autoencoder, VAE）為核心演算法，整合資料自動下載、滑動視窗切割、不平衡情境模擬、正常資料訓練、異常分數計算、基準方法比較、消融實驗與結果視覺化。
+流程僅使用正常振動訊號訓練，並以重建誤差作為異常分數。
+以凱斯西儲大學（CWRU）軸承振動資料集為案例，本文在視窗層級交叉驗證下達到 AUC-ROC $=1.0000\pm0.0000$，故障重建誤差約為正常訊號之 5.2 倍。
+為回應標準 CWRU 評估可能過度樂觀之疑慮，本文進一步補充 load-wise split、閾值校準、噪音魯棒性與 AE 對照實驗。
+結果顯示，VAE 在未見負載條件下仍維持 ROC-AUC 與 PR-AUC 皆為 1.0000，但固定 P95 閾值在部分負載上會造成高誤報率；若使用少量目標負載正常資料進行 P99 校準，平均誤報率可由 28.55\% 降至 1.14\%，平均 F1-score 可提升至 98.05\%。
+噪音實驗亦顯示，30 與 20 dB 下表現接近 clean setting，但 10 與 5 dB 下固定閾值會明顯失效。
+綜合而言，本文將 CWRU 滿分結果定位為可重現流程之案例驗證，而非模型效能突破，並指出跨工況閾值校準是工業部署之關鍵。
+\end{abstract}
+
+\begin{IEEEkeywords}
+無監督異常偵測，變分自編碼器，可重現軟體流程，工業健康監測，軸承故障，閾值校準，噪音魯棒性
+\end{IEEEkeywords}
+
+\section{研究背景與動機}
+旋轉機械設備中，軸承故障是常見且具代表性的失效來源之一。
+一旦發生非計畫性停機，不僅造成高額維修成本，更可能引發安全事故。
+因此，建立能在故障早期提供預警的健康監測系統，是智慧製造與預知保養的重要課題。
+
+傳統監督式故障診斷仰賴大量標注資料，但真實工廠通常長時間處於正常運轉狀態，故障樣本稀少且取得成本高。
+此外，實際部署時常遇到未見負載、未見轉速、未見故障尺寸或感測雜訊，若只以隨機切分之標準資料集評估，容易高估模型泛化能力。
+因此，本研究採用無監督異常偵測觀點，只以正常資料學習健康狀態分布，並以偏離正常分布之程度作為異常分數。
+
+本研究的貢獻如下：
+\begin{enumerate}
+  \item \textbf{可重現開源流程：}提供從 CWRU 資料下載、切窗、前處理、模型訓練、評估至視覺化之完整軟體流程。
+  \item \textbf{正常資料訓練策略：}VAE 訓練期間僅使用正常樣本，不需故障標籤，符合故障資料稀少之實務條件。
+  \item \textbf{嚴格泛化驗證：}除視窗層級交叉驗證外，新增 load-wise split，以未見負載條件評估模型。
+  \item \textbf{實務部署分析：}補充 PR-AUC、Precision、Recall、F1-score、False Alarm Rate（FAR）、Miss Rate（MR）、閾值校準與噪音魯棒性分析。
+  \item \textbf{模型定位修正：}在相同 load-wise 設定下加入 AE 對照，避免將 CWRU 滿分結果過度解讀為 VAE 效能突破。
+\end{enumerate}
+
+\section{相關研究}
+\subsection{傳統訊號特徵方法}
+早期軸承診斷方法多以時域與頻域統計特徵為基礎，例如均方根值、峰度、峰值因數、頻率重心與故障特徵頻率等，搭配支援向量機、$k$ 近鄰或其他傳統分類器進行辨識\cite{smith2015rolling}。
+此類方法具可解釋性，但效能高度依賴特徵工程與領域知識，且在跨工況或感測雜訊下穩定性有限。
+
+\subsection{深度學習與健康監測}
+卷積神經網路（CNN）與循環式神經網路可直接從原始振動訊號或頻譜圖中學習特徵，在 CWRU 等標準資料集上常達到極高準確率\cite{zhao2019deep}。
+然而，監督式深度模型通常需要大量標注故障資料，且對未見故障型態或未見負載條件之泛化能力仍需審慎驗證。
+
+\subsection{無監督異常偵測}
+自編碼器（Autoencoder, AE）可透過重建誤差偵測異常，只需正常資料即可訓練\cite{an2015variational}。
+VAE 在 AE 基礎上引入 KL 散度正則化，使潛在空間趨近標準常態先驗\cite{kingma2014auto}。
+此機率式潛在空間有助於模型解釋與不確定性分析，但在 CWRU 這類高度可分資料集上，VAE 不一定能在 AUC 指標上明顯優於 AE。
+因此，本文將 VAE 視為可替換軟體管線中的核心範例模型，並以嚴格實驗檢視其限制。
+
+\section{研究方法}
+\subsection{資料集與前處理}
+本文使用 CWRU Bearing Dataset\cite{loparo2012}。
+資料包含正常軸承與三類故障：內圈故障、滾動體故障與外圈故障；故障尺寸包含 0.007、0.014 與 0.021 inch，負載條件為 0--3 HP。
+原始訊號採樣率為 12 kHz。
+本文使用 1,024 點滑動視窗，步長為 512 點，故相鄰視窗具有 50\% 重疊。
+切窗後共取得 11,832 個片段，其中正常 3,310 筆、故障 8,522 筆。
+
+為模擬工廠中正常樣本多於故障樣本之情境，本文保留全部正常樣本，並隨機保留 10\% 故障樣本，形成 4,162 筆樣本（正常 79.5\%、故障 20.5\%）。
+每個視窗進行 per-window Z-score 標準化，以降低振幅尺度差異。
+圖~\ref{fig:time} 顯示四類訊號之時域波形。
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{01_time_domain.png}
+  \caption{四類軸承振動訊號之時域波形比較。}
+  \label{fig:time}
+\end{figure}
+
+\subsection{VAE 架構}
+VAE encoder 由四層一維步幅卷積組成：
+$1\to16$、$16\to32$、$32\to64$、$64\to128$，各層搭配 Batch Normalization 與 ReLU。
+展平後經全連接層輸出潛在均值 $\boldsymbol{\mu}$ 與對數變異數 $\log\boldsymbol{\sigma}^{2}$。
+重參數化如下：
+\begin{equation}
+  \mathbf{z}=\boldsymbol{\mu}+\boldsymbol{\varepsilon}\odot
+  \exp\left(\frac{1}{2}\log\boldsymbol{\sigma}^{2}\right),
+  \quad \boldsymbol{\varepsilon}\sim\mathcal{N}(\mathbf{0},\mathbf{I}).
+\end{equation}
+Decoder 使用全連接層與四層一維轉置卷積重建 1,024 點訊號。
+
+損失函數為：
+\begin{equation}
+  \mathcal{L}=
+  \mathrm{MSE}(x,\hat{x})\times1024+
+  \beta D_{\mathrm{KL}}\left(q(\mathbf{z}|x)\|\mathcal{N}(\mathbf{0},\mathbf{I})\right),
+\end{equation}
+其中 $\beta=1.0$。
+推論時使用 deterministic latent mean 進行重建，異常分數定義為每個視窗之平均重建 MSE。
+
+\subsection{評估協議}
+本文使用三層評估協議。
+第一，視窗層級 K-fold 僅用正常資料訓練 VAE，故障資料只用於評估。
+第二，load-wise split 每次保留一個負載條件作為未見測試集，訓練時僅使用其他負載條件的正常資料。
+第三，針對 load-wise 結果進行閾值校準、噪音魯棒性與 AE 對照分析。
+
+二元偵測指標包含 Precision、Recall、F1-score、FAR 與 MR：
+\begin{equation}
+  \mathrm{FAR}=\frac{\mathrm{FP}}{\mathrm{FP}+\mathrm{TN}},\quad
+  \mathrm{MR}=\frac{\mathrm{FN}}{\mathrm{FN}+\mathrm{TP}}.
+\end{equation}
+
+\section{實驗結果}
+\subsection{視窗層級基準結果}
+在原始視窗層級交叉驗證設定下，VAE 達到 AUC-ROC $=1.0000\pm0.0000$。
+正常樣本重建誤差為 $0.2007\pm0.0950$，故障樣本重建誤差為 $1.0493\pm0.0103$，約為正常樣本之 5.2 倍。
+圖~\ref{fig:recon} 與圖~\ref{fig:roc} 顯示重建誤差分布與 ROC 曲線。
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{08_reconstruction_error.png}
+  \caption{正常與故障樣本之重建誤差分布。}
+  \label{fig:recon}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.82\columnwidth]{09_roc_curve.png}
+  \caption{視窗層級評估之 ROC 曲線。}
+  \label{fig:roc}
+\end{figure}
+
+表~\ref{tab:baseline} 顯示多種基準方法之 AUC-ROC。
+多數方法在 CWRU 上皆達到接近滿分，說明該資料集在目前前處理設定下高度可分。
+因此，本文不將此表解讀為 VAE 效能突破，而是作為流程可重現性與基準比較之參考。
+
+\begin{table}[ht]
+\centering
+\caption{各方法於 CWRU 設定下之異常偵測 AUC-ROC}
+\label{tab:baseline}
+\begin{tabular}{lccc}
+\toprule
+\textbf{方法} & \textbf{AUC-ROC} & \textbf{特徵工程} & \textbf{故障標籤} \\
+\midrule
+OC-SVM\cite{scholkopf2001} & 1.0000 & 是 & 否 \\
+LOF\cite{breunig2000lof} & 1.0000 & 是 & 否 \\
+Isolation Forest\cite{liu2008isolation} & 0.9986 & 是 & 否 \\
+AE & $1.0000\pm0.0000$ & 否 & 否 \\
+VAE & $1.0000\pm0.0000$ & 否 & 否 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Load-wise 泛化驗證}
+為避免 50\% 重疊視窗造成隨機切分過度樂觀，本文進一步採用 load-wise split。
+每一折保留一個負載條件作為未見測試集，VAE 只使用其餘負載條件之正常資料訓練。
+表~\ref{tab:loadwise} 顯示結果。
+
+\begin{table}[ht]
+\centering
+\caption{CWRU load-wise split 泛化驗證}
+\label{tab:loadwise}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Held-out load} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{Precision} & \textbf{F1} & \textbf{FAR} \\
+\midrule
+0 & 1.0000 & 1.0000 & 74.55\% & 85.42\% & 14.74\% \\
+1 & 1.0000 & 1.0000 & 99.54\% & 99.77\% & 0.11\% \\
+2 & 1.0000 & 1.0000 & 99.11\% & 99.55\% & 0.21\% \\
+3 & 1.0000 & 1.0000 & 18.21\% & 30.80\% & 99.16\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+四個未見負載條件下，ROC-AUC 與 PR-AUC 皆維持 1.0000，表示異常分數排序能力仍高。
+然而，固定使用 validation normal P95 閾值時，held-out load 3 出現 99.16\% 誤報率。
+此結果說明：AUC 滿分並不保證部署閾值可跨負載直接沿用；工業部署應同時報告 FAR、MR 與閾值校準方法。
+
+\subsection{閾值校準}
+為處理 load-wise split 暴露出的閾值轉移問題，本文比較多種校準策略，包括 train normal P95/P99、validation normal P95/P99、median-MAD robust threshold，以及使用目標負載 10\% 正常資料之 calibration。
+表~\ref{tab:calibration} 顯示跨四個 held-out load 之平均結果。
+
+\begin{table}[ht]
+\centering
+\caption{跨負載閾值校準策略之平均結果}
+\label{tab:calibration}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Calibration strategy} & \textbf{Mean F1} & \textbf{Mean FAR} \\
+\midrule
+Train normal P95 & 61.40\% & 54.32\% \\
+Validation normal P95 & 78.89\% & 28.55\% \\
+Validation normal P99 & 83.46\% & 20.25\% \\
+Target-load 10\% normal P95 & 90.88\% & 6.13\% \\
+Target-load 10\% normal P99 & 98.05\% & 1.14\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+結果顯示，若部署時可蒐集少量目標負載正常資料，閾值可被有效校準。
+Target-load 10\% normal P99 使平均 FAR 降至 1.14\%，並將平均 F1-score 提升至 98.05\%。
+此結果回應工業場域對誤報控制之要求，也指出少量健康狀態資料對實務部署具有高度價值。
+
+\subsection{噪音魯棒性}
+CWRU 為實驗室資料集，訊號品質較高。
+為模擬真實工廠雜訊，本文於 load-wise 測試集加入不同 SNR 高斯噪音。
+表~\ref{tab:noise} 顯示 clean、30、20、10、5 dB 下之平均 F1 與 FAR。
+
+\begin{table}[ht]
+\centering
+\caption{噪音魯棒性分析}
+\label{tab:noise}
+\begin{tabular}{lcc}
+\toprule
+\textbf{SNR} & \textbf{Mean F1} & \textbf{Mean FAR} \\
+\midrule
+Clean & 78.89\% & 28.55\% \\
+30 dB & 78.75\% & 28.71\% \\
+20 dB & 77.97\% & 29.76\% \\
+10 dB & 61.38\% & 52.90\% \\
+5 dB & 35.08\% & 100.00\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+在 30 與 20 dB 下，F1-score 與 clean setting 接近。
+然而，在 10 與 5 dB 下，固定閾值使誤報率大幅上升。
+因此，若部署於高噪音工廠環境，需搭配濾波、噪音感知校準或自適應閾值。
+
+\subsection{AE 與 VAE 嚴格對照}
+為回應 VAE 優勢不明顯之疑慮，本文新增 deterministic convolutional AE。
+AE 使用與 VAE 對齊的卷積 encoder/decoder，僅移除 KL 散度與重參數化。
+表~\ref{tab:aevsvae} 顯示在 load-wise split 下之平均結果。
+
+\begin{table}[ht]
+\centering
+\caption{AE 與 VAE 於 load-wise split 之比較}
+\label{tab:aevsvae}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{模型} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{Mean F1} & \textbf{Mean FAR} & \textbf{Mean MR} \\
+\midrule
+VAE & $1.0000\pm0.0000$ & $1.0000\pm0.0000$ & 78.89\% & 28.55\% & 0.00\% \\
+AE & $1.0000\pm0.0000$ & $1.0000\pm0.0000$ & 80.52\% & 26.52\% & 0.00\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+結果顯示，在目前 CWRU load-wise 設定下，AE 與 VAE 的排序指標皆達滿分，VAE 並未在 AUC 上顯著優於 AE。
+因此，本文將 VAE 定位為具機率潛在空間與可解釋性的模型元件，而非宣稱其在 CWRU 上具有明顯效能優勢。
+
+\subsection{潛在空間視覺化}
+圖~\ref{fig:latent} 顯示 VAE 潛在均值之 t-SNE 投影。
+正常與故障樣本在低維投影中呈現明顯分離，但 t-SNE 僅作為輔助解釋，不應視為潛在分布之嚴格證明。
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{10_latent_space.png}
+  \caption{VAE 潛在均值之 t-SNE 投影。}
+  \label{fig:latent}
+\end{figure}
+
+\section{討論}
+本文結果顯示，CWRU 在目前前處理設定下具有高度可分離性，即使採用 load-wise split，ROC-AUC 與 PR-AUC 仍可維持 1.0000。
+然而，閾值相關指標揭示了單一 AUC 無法呈現的部署風險。
+特別是 held-out load 3 在 validation normal P95 下出現高 FAR，說明跨負載時正常樣本重建誤差分布可能位移。
+
+因此，本文主張工業異常偵測評估應包含三個層次：
+\begin{enumerate}
+  \item \textbf{排序能力：}使用 ROC-AUC 與 PR-AUC 檢查異常分數是否能分離正常與故障。
+  \item \textbf{部署閾值：}使用 Precision、F1、FAR 與 MR 檢查固定閾值之實際警報行為。
+  \item \textbf{跨工況校準：}在未見負載或高噪音情境下，使用少量正常資料或 robust threshold 校準閾值。
+\end{enumerate}
+
+本文限制如下。
+第一，CWRU 為標準實驗室資料集，訊號品質高且故障模式清楚，因此結果不能直接等同於真實工廠部署成效。
+第二，本文雖加入 load-wise split，但尚未納入外部資料集如 IMS、FEMTO-ST/PRONOSTIA 或 Paderborn。
+第三，目前噪音實驗使用合成高斯噪音，尚未涵蓋工廠中可能出現的非高斯衝擊、電磁干擾或感測器漂移。
+第四，per-window Z-score 可能削弱振幅資訊，未來應比較 global normalization、robust scaling 與無標準化設定。
+
+\section{結論}
+本文提出一套面向工業設備健康監測之可重現無監督異常偵測軟體流程，並以 CWRU 軸承振動資料集進行案例驗證。
+流程整合資料下載、滑動視窗切割、不平衡情境模擬、VAE 正常資料訓練、異常分數計算、基準比較與視覺化。
+在視窗層級設定下，VAE 達到 AUC-ROC $=1.0000\pm0.0000$，故障重建誤差約為正常樣本之 5.2 倍。
+進一步的 load-wise split 顯示模型在未見負載下仍具高度排序能力，但固定閾值可能導致高誤報率。
+閾值校準實驗證明，少量目標負載正常資料能顯著降低誤報率；噪音實驗則指出低 SNR 下需進行噪音感知校準。
+AE 對照實驗顯示，CWRU 上 AE 與 VAE 的 AUC 皆可達滿分，因此本文不宣稱 VAE 具顯著效能突破，而是將其作為可重現管線中具機率潛在空間之範例模型。
+
+完整程式碼與實驗結果已公開於：
+\url{https://github.com/charmi582/CWRU-VAE}。
+
+\section*{誌謝}
+感謝凱斯西儲大學軸承資料中心（CWRU Bearing Data Center）提供公開振動資料集供學術研究使用。
+
+\begin{thebibliography}{00}
+
+\bibitem{smith2015rolling}
+W.~A. Smith and R.~B. Randall,
+``Rolling element bearing diagnostics using the Case Western Reserve University data: A benchmark study,''
+\textit{Mechanical Systems and Signal Processing}, vol.~64--65, pp.~100--131, 2015.
+
+\bibitem{kingma2014auto}
+D.~P. Kingma and M.~Welling,
+``Auto-encoding variational Bayes,''
+in \textit{Proc. International Conference on Learning Representations (ICLR)}, 2014.
+
+\bibitem{zhao2019deep}
+R.~Zhao, R.~Yan, Z.~Chen, K.~Mao, P.~Wang, and R.~X. Gao,
+``Deep learning and its applications to machine health monitoring,''
+\textit{Mechanical Systems and Signal Processing}, vol.~115, pp.~213--237, 2019.
+
+\bibitem{an2015variational}
+J.~An and S.~Cho,
+``Variational autoencoder based anomaly detection using reconstruction probability,''
+\textit{Special Lecture on IE}, vol.~2, no.~1, 2015.
+
+\bibitem{loparo2012}
+K.~A. Loparo,
+``Bearings vibration data set,'' Case Western Reserve University, 2012.
+[Online]. Available: \url{https://engineering.case.edu/bearingdatacenter}
+
+\bibitem{scholkopf2001}
+B.~Scholkopf, J.~C. Platt, J.~Shawe-Taylor, A.~J. Smola, and R.~C. Williamson,
+``Estimating the support of a high-dimensional distribution,''
+\textit{Neural Computation}, vol.~13, no.~7, pp.~1443--1471, 2001.
+
+\bibitem{breunig2000lof}
+M.~M. Breunig, H.-P. Kriegel, R.~T. Ng, and J.~Sander,
+``LOF: Identifying density-based local outliers,''
+in \textit{Proc. ACM SIGMOD}, 2000, pp.~93--104.
+
+\bibitem{liu2008isolation}
+F.~T. Liu, K.~M. Ting, and Z.-H. Zhou,
+``Isolation forest,''
+in \textit{Proc. IEEE International Conference on Data Mining}, 2008, pp.~413--422.
+
+\end{thebibliography}
+
+\end{CJK}
+\end{document}
