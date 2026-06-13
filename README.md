@@ -220,6 +220,45 @@ python load_wise_experiment.py
 python load_wise_experiment.py --max-epochs 3 --patience 2
 ```
 
+### 期刊版嚴格實驗擴充
+
+期刊版不再只以 CWRU 視窗層級 AUC 作為主要貢獻，而是將
+**threshold calibration**、跨負載、跨故障尺寸、file-wise 切分與部署延遲
+作為核心分析。新增腳本如下：
+
+```bash
+python strict_cwru_journal_experiments.py \
+  --protocols fault-size-wise file-wise load-wise \
+  --models vae cnn-ae lstm-ae iforest
+```
+
+若要先快速檢查流程，可使用：
+
+```bash
+python strict_cwru_journal_experiments.py \
+  --protocols fault-size-wise \
+  --models iforest \
+  --max-epochs 1 --patience 1
+```
+
+輸出：
+
+- `results/journal_strict_cwru/strict_cwru_metrics.csv`
+- `results/journal_strict_cwru/models/`（模型權重預設不納入 Git）
+
+目前支援的 protocol：
+
+- `load-wise`：保留一個負載條件作為未見測試集。
+- `fault-size-wise`：保留一個故障尺寸（0.007、0.014、0.021 inch）作為未見測試集。
+- `file-wise`：以原始 `.mat` 檔案作為 group，降低重疊視窗造成的資料洩漏風險。
+
+目前支援的 baseline：
+
+- `vae`：卷積式變分自編碼器。
+- `cnn-ae`：卷積式 deterministic autoencoder。
+- `lstm-ae`：LSTM autoencoder。
+- `iforest`：Isolation Forest，使用 12 維時域/頻域統計特徵。
+
 ### Threshold calibration
 
 load-wise 結果顯示，跨負載時最大的問題不是 AUC，而是閾值轉移。新增腳本：

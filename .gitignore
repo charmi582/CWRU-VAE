@@ -8,6 +8,7 @@ results/data/
 # *.pth
 results/models/load_wise_*.pt
 results/models/ae_load_wise_*.pt
+results/journal_strict_cwru/models/
 
 # ── PPT/Office 暫存檔 ──────────────────────────────────
 ~$*.pptx

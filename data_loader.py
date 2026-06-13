@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import numpy as np
 import scipy.io
 import requests
@@ -82,6 +83,14 @@ def _segment(signal: np.ndarray) -> np.ndarray:
     return np.array(segs, dtype=np.float32) if segs else np.empty((0, WINDOW_SIZE))
 
 
+def _fault_size_from_label(label_name: str) -> str:
+    """Return CWRU fault-size group from labels such as IR_007 or Ball_014."""
+    if label_name == "Normal":
+        return "normal"
+    match = re.search(r"_(\d{3})$", label_name)
+    return match.group(1) if match else "unknown"
+
+
 def download_and_load_with_metadata() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """
     Download CWRU data, segment into windows, and return arrays.
@@ -99,7 +108,7 @@ def download_and_load_with_metadata() -> tuple[np.ndarray, np.ndarray, np.ndarra
     print("=" * 60)
 
     segments_list, binary_list, multi_list = [], [], []
-    file_list, load_list, label_name_list = [], [], []
+    file_list, load_list, label_name_list, fault_size_list = [], [], [], []
     skipped = []
 
     for file_i, (fname, label_name, label_id) in enumerate(tqdm(FILE_CONFIGS, desc="Downloading")):
@@ -127,6 +136,9 @@ def download_and_load_with_metadata() -> tuple[np.ndarray, np.ndarray, np.ndarra
         # FILE_CONFIGS is ordered by load condition within each fault family.
         load_list.append(np.full(len(segs), file_i % 4, dtype=np.int32))
         label_name_list.append(np.full(len(segs), label_name, dtype=object))
+        fault_size_list.append(
+            np.full(len(segs), _fault_size_from_label(label_name), dtype=object)
+        )
 
     if skipped:
         print(f"\n  [WARN] Skipped {len(skipped)} file(s): {skipped}")
@@ -144,6 +156,7 @@ def download_and_load_with_metadata() -> tuple[np.ndarray, np.ndarray, np.ndarra
         "file": np.concatenate(file_list, axis=0),
         "load": np.concatenate(load_list, axis=0),
         "label_name": np.concatenate(label_name_list, axis=0),
+        "fault_size": np.concatenate(fault_size_list, axis=0),
     }
 
     print(f"\n  Loaded  : {X.shape[0]:,} segments  ×  {X.shape[1]} samples")
