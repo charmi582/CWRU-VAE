@@ -6,6 +6,8 @@ results/data/
 # results/models/
 # *.pt
 # *.pth
+results/models/load_wise_*.pt
+results/models/ae_load_wise_*.pt
 
 # ── PPT/Office 暫存檔 ──────────────────────────────────
 ~$*.pptx

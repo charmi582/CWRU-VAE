@@ -29,6 +29,11 @@ cwru_vae/
 ├── preprocessor.py     # 資料平衡、正規化、K-Fold 切分
 ├── vae_model.py        # VAE 模型（Encoder / Reparameterize / Decoder）
 ├── trainer.py          # K-Fold 訓練主流程
+├── load_wise_experiment.py # CWRU load-wise 泛化驗證
+├── threshold_calibration_experiment.py # 跨負載閾值校準分析
+├── noise_robustness_experiment.py # SNR 噪音魯棒性分析
+├── ae_load_wise_experiment.py # AE baseline 的 load-wise 對照
+├── reviewer_response_experiments.py # 評審回覆補充分析
 ├── visualizer.py       # 10 張視覺化圖表生成
 ├── main.py             # 主程式入口（執行全流程）
 ├── make_pptx_v2.py     # 自動生成中文 PPT 與學術海報
@@ -141,6 +146,8 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 
 ## 實驗結果
 
+> **結果解讀提醒**：CWRU 是高度標準化的實驗室資料集，在目前視窗層級切分與前處理設定下，正常與故障訊號高度可分。因此，本專案將 AUC-ROC = 1.0000 定位為「可重現軟體流程的案例驗證」，而非宣稱 VAE 在所有工業場景中顯著優於其他方法。若用於一般論文或真實部署，建議進一步採用 file-wise、load-wise 或 cross-domain split。
+
 ### 最終指標
 
 | 指標 | 數值 |
@@ -151,6 +158,136 @@ $$D_{KL} = -\frac{1}{2} \cdot \text{mean}\left(1 + \log\sigma^2 - \mu^2 - \exp(\
 | 正常重建誤差 mean±std | 0.2007 ± 0.0950 |
 | 故障重建誤差 mean±std | 1.0493 ± 0.0103 |
 | **故障/正常誤差比** | **~5.2×** |
+
+### 補充實務指標（回應評審建議）
+
+以正常資料重建誤差百分位數作為閾值時：
+
+| 閾值 | Precision | Recall | F1-score | False alarm rate | Miss rate |
+|------|-----------|--------|----------|------------------|-----------|
+| P90 | 72.02% | 100.00% | 83.67% | 10.00% | 0.00% |
+| P95 | 83.69% | 100.00% | 91.12% | 5.02% | 0.00% |
+| P97.5 | 91.12% | 100.00% | 95.35% | 2.51% | 0.00% |
+| P99 | 96.17% | 100.00% | 98.05% | 1.03% | 0.00% |
+
+額外腳本 `reviewer_response_experiments.py` 可在完成 `python main.py` 後產生：
+
+- `results/reviewer_response/reviewer_metrics.csv`
+- `results/reviewer_response/strict_split_protocol.txt`
+
+```bash
+pip install -r requirements.txt
+python main.py
+python reviewer_response_experiments.py
+```
+
+該腳本補充 PR-AUC、Precision、Recall、F1、false alarm rate、miss rate、P90/P95/P97.5/P99 閾值敏感度、95:5 與 99:1 極端不平衡壓力測試，並輸出 file-wise / load-wise GroupKFold 的切分協議。
+
+### Load-wise 泛化驗證
+
+為避免 50% 重疊滑動視窗在隨機切分時造成過度樂觀，本專案新增 CWRU load-wise split 實驗：
+
+- 每一折保留一個負載條件作為完全未見測試集
+- VAE 只使用其餘三個負載條件中的正常資料訓練
+- 閾值由訓練端切出的正常 validation set 估計，不使用測試負載資料
+- 輸出 ROC-AUC、PR-AUC、Precision、Recall、F1、false alarm rate、miss rate
+
+```bash
+pip install -r requirements.txt
+python load_wise_experiment.py
+```
+
+輸出：
+
+- `results/load_wise/load_wise_metrics.csv`
+- `results/models/load_wise_heldout_load0.pt` 到 `load_wise_heldout_load3.pt`
+
+目前正式執行結果如下：
+
+| Held-out load | ROC-AUC | PR-AUC | Precision | Recall | F1-score | False alarm rate | Miss rate |
+|---------------|---------|--------|-----------|--------|----------|------------------|-----------|
+| 0 | 1.0000 | 1.0000 | 74.55% | 100.00% | 85.42% | 14.74% | 0.00% |
+| 1 | 1.0000 | 1.0000 | 99.54% | 100.00% | 99.77% | 0.11% | 0.00% |
+| 2 | 1.0000 | 1.0000 | 99.11% | 100.00% | 99.55% | 0.21% | 0.00% |
+| 3 | 1.0000 | 1.0000 | 18.21% | 100.00% | 30.80% | 99.16% | 0.00% |
+| **Mean ± std** | **1.0000 ± 0.0000** | **1.0000 ± 0.0000** | - | - | **78.89% ± 28.36%** | - | - |
+
+此結果顯示，load-wise split 下異常分數排序能力仍高，但固定以 validation normal P95 作為閾值時，部分未見負載可能出現高誤報率。因此，修正版論文不應只報 AUC，還需要討論跨負載閾值校準、false alarm rate 與實務警報成本。
+
+若只是快速檢查流程，可先降低訓練輪數：
+
+```bash
+python load_wise_experiment.py --max-epochs 3 --patience 2
+```
+
+### Threshold calibration
+
+load-wise 結果顯示，跨負載時最大的問題不是 AUC，而是閾值轉移。新增腳本：
+
+```bash
+python threshold_calibration_experiment.py
+```
+
+輸出：
+
+- `results/threshold_calibration/threshold_calibration_metrics.csv`
+
+平均結果摘要：
+
+| Calibration strategy | Mean F1 | Mean false alarm rate |
+|----------------------|---------|-----------------------|
+| Train normal P95 | 61.40% | 54.32% |
+| Validation normal P95 | 78.89% | 28.55% |
+| Validation normal P99 | 83.46% | 20.25% |
+| Target-load 10% normal P95 | 90.88% | 6.13% |
+| Target-load 10% normal P99 | 98.05% | 1.14% |
+
+這代表若部署場域允許蒐集少量目標負載的正常資料作為 calibration set，誤報率可大幅降低。此結論比單純報告 AUC 更貼近工業部署。
+
+### Noise robustness
+
+為模擬真實工廠雜訊，本專案對 load-wise 測試訊號加入高斯噪音：
+
+```bash
+python noise_robustness_experiment.py
+```
+
+輸出：
+
+- `results/noise_robustness/noise_robustness_metrics.csv`
+
+平均結果摘要：
+
+| SNR | Mean F1 | Mean false alarm rate |
+|-----|---------|-----------------------|
+| Clean | 78.89% | 28.55% |
+| 30 dB | 78.75% | 28.71% |
+| 20 dB | 77.97% | 29.76% |
+| 10 dB | 61.38% | 52.90% |
+| 5 dB | 35.08% | 100.00% |
+
+排序指標 ROC-AUC / PR-AUC 在此設定下仍維持 1.0000，但固定閾值在低 SNR 下會造成誤報率上升，因此實務部署需要噪音感知的閾值校準或前處理。
+
+### AE vs VAE under load-wise split
+
+新增 deterministic convolutional AE baseline：
+
+```bash
+python ae_load_wise_experiment.py
+```
+
+輸出：
+
+- `results/ae_load_wise/ae_load_wise_metrics.csv`
+
+平均結果摘要：
+
+| Model | ROC-AUC | PR-AUC | Mean F1 | Mean false alarm rate | Mean miss rate |
+|-------|---------|--------|---------|-----------------------|----------------|
+| VAE | 1.0000 ± 0.0000 | 1.0000 ± 0.0000 | 78.89% ± 28.36% | 28.55% | 0.00% |
+| AE | 1.0000 ± 0.0000 | 1.0000 ± 0.0000 | 80.52% ± 28.73% | 26.52% | 0.00% |
+
+在 CWRU load-wise split 下，AE 與 VAE 的排序能力皆達滿分，兩者差異主要反映在閾值與誤報率，而非 AUC。修正版論文因此不應宣稱 VAE 明顯優於 AE，而應將 VAE 定位為具機率潛在空間與可解釋性的可替換模型元件。
 
 ### 各 Fold 結果
 

@@ -18,30 +18,34 @@ HEADERS = {
 }
 
 
-def _download(url: str, path: str) -> bool:
+def _download(url: str, path: str, retries: int = 3) -> bool:
     if os.path.exists(path) and os.path.getsize(path) > 1024:
         return True
-    try:
-        r = requests.get(url, stream=True, timeout=60, headers=HEADERS)
-        r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
-        with open(path, "wb") as f, tqdm(
-            desc=f"  {os.path.basename(path)}",
-            total=total, unit="iB", unit_scale=True,
-            unit_divisor=1024, leave=False,
-        ) as bar:
-            for chunk in r.iter_content(8192):
-                bar.update(f.write(chunk))
-        # Verify it looks like a MAT file (not an HTML error page)
-        if os.path.getsize(path) < 1024:
-            os.remove(path)
-            return False
-        return True
-    except Exception as exc:
-        print(f"  [WARN] Cannot download {url}: {exc}")
+
+    for attempt in range(1, retries + 1):
         if os.path.exists(path):
             os.remove(path)
-        return False
+        try:
+            r = requests.get(url, stream=True, timeout=60, headers=HEADERS)
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+            with open(path, "wb") as f, tqdm(
+                desc=f"  {os.path.basename(path)}",
+                total=total, unit="iB", unit_scale=True,
+                unit_divisor=1024, leave=False,
+            ) as bar:
+                for chunk in r.iter_content(8192):
+                    bar.update(f.write(chunk))
+            # Verify it looks like a MAT file (not an HTML error page)
+            if os.path.getsize(path) < 1024:
+                raise RuntimeError("downloaded file is unexpectedly small")
+            return True
+        except Exception as exc:
+            print(f"  [WARN] Cannot download {url} (attempt {attempt}/{retries}): {exc}")
+
+    if os.path.exists(path):
+        os.remove(path)
+    return False
 
 
 def _extract_de_time(path: str) -> np.ndarray | None:
@@ -78,7 +82,7 @@ def _segment(signal: np.ndarray) -> np.ndarray:
     return np.array(segs, dtype=np.float32) if segs else np.empty((0, WINDOW_SIZE))
 
 
-def download_and_load() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def download_and_load_with_metadata() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """
     Download CWRU data, segment into windows, and return arrays.
 
@@ -95,9 +99,10 @@ def download_and_load() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     print("=" * 60)
 
     segments_list, binary_list, multi_list = [], [], []
+    file_list, load_list, label_name_list = [], [], []
     skipped = []
 
-    for fname, label_name, label_id in tqdm(FILE_CONFIGS, desc="Downloading"):
+    for file_i, (fname, label_name, label_id) in enumerate(tqdm(FILE_CONFIGS, desc="Downloading")):
         url  = BASE_URL + fname
         path = os.path.join(DATA_DIR, fname)
 
@@ -118,6 +123,10 @@ def download_and_load() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         segments_list.append(segs)
         binary_list.append(np.full(len(segs), binary, dtype=np.int32))
         multi_list.append(np.full(len(segs), label_id, dtype=np.int32))
+        file_list.append(np.full(len(segs), fname, dtype=object))
+        # FILE_CONFIGS is ordered by load condition within each fault family.
+        load_list.append(np.full(len(segs), file_i % 4, dtype=np.int32))
+        label_name_list.append(np.full(len(segs), label_name, dtype=object))
 
     if skipped:
         print(f"\n  [WARN] Skipped {len(skipped)} file(s): {skipped}")
@@ -131,9 +140,20 @@ def download_and_load() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     X       = np.concatenate(segments_list, axis=0)
     y_bin   = np.concatenate(binary_list,   axis=0)
     y_multi = np.concatenate(multi_list,    axis=0)
+    metadata = {
+        "file": np.concatenate(file_list, axis=0),
+        "load": np.concatenate(load_list, axis=0),
+        "label_name": np.concatenate(label_name_list, axis=0),
+    }
 
     print(f"\n  Loaded  : {X.shape[0]:,} segments  ×  {X.shape[1]} samples")
     print(f"  Normal  : {(y_bin == 0).sum():,}")
     print(f"  Fault   : {(y_bin == 1).sum():,}")
 
+    return X, y_bin, y_multi, metadata
+
+
+def download_and_load() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Backward-compatible loader used by the original training pipeline."""
+    X, y_bin, y_multi, _ = download_and_load_with_metadata()
     return X, y_bin, y_multi

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import GroupKFold, KFold
 
 from config import FAULT_RATIO, K_FOLDS, LABEL_NAMES
 
@@ -47,6 +47,25 @@ def balance_dataset(
     return X_b, y_bin_b, y_multi_b
 
 
+def balance_dataset_with_indices(
+    y_binary: np.ndarray,
+    fault_ratio: float = FAULT_RATIO,
+    seed: int = 42,
+) -> np.ndarray:
+    """Return indices for the factory-like balanced subset."""
+    rng = np.random.default_rng(seed)
+
+    normal_idx = np.where(y_binary == 0)[0]
+    fault_idx = np.where(y_binary == 1)[0]
+
+    n_keep = max(1, int(len(fault_idx) * fault_ratio))
+    kept_fault = rng.choice(fault_idx, size=n_keep, replace=False)
+
+    idx = np.concatenate([normal_idx, kept_fault])
+    rng.shuffle(idx)
+    return idx
+
+
 def normalize_per_sample(X: np.ndarray) -> np.ndarray:
     """Z-score normalise each window independently (zero mean, unit std)."""
     mean = X.mean(axis=1, keepdims=True)
@@ -58,3 +77,14 @@ def kfold_splits(X: np.ndarray, n_splits: int = K_FOLDS, seed: int = 42):
     """Return list of (train_idx, val_idx) tuples for *X*."""
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
     return list(kf.split(X))
+
+
+def group_kfold_splits(groups: np.ndarray, n_splits: int = K_FOLDS):
+    """Return leakage-resistant splits that keep each group in one fold."""
+    n_unique = len(np.unique(groups))
+    n_splits = min(n_splits, n_unique)
+    if n_splits < 2:
+        raise ValueError("Need at least two unique groups for GroupKFold.")
+    splitter = GroupKFold(n_splits=n_splits)
+    dummy_x = np.zeros((len(groups), 1), dtype=np.float32)
+    return list(splitter.split(dummy_x, groups=groups))
