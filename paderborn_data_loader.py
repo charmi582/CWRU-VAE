@@ -112,16 +112,16 @@ def extract_paderborn_archives(
         subprocess.run(cmd, check=True)
 
 
-def _segment(signal: np.ndarray) -> np.ndarray:
+def _segment(signal: np.ndarray, window_size: int, stride: int) -> np.ndarray:
     segs = [
-        signal[s : s + WINDOW_SIZE]
-        for s in range(0, len(signal) - WINDOW_SIZE + 1, STRIDE)
+        signal[s : s + window_size]
+        for s in range(0, len(signal) - window_size + 1, stride)
     ]
-    return np.array(segs, dtype=np.float32) if segs else np.empty((0, WINDOW_SIZE))
+    return np.array(segs, dtype=np.float32) if segs else np.empty((0, window_size))
 
 
-def _is_numeric_vector(value) -> bool:
-    return isinstance(value, np.ndarray) and np.issubdtype(value.dtype, np.number) and value.size >= WINDOW_SIZE
+def _is_numeric_vector(value, min_size: int) -> bool:
+    return isinstance(value, np.ndarray) and np.issubdtype(value.dtype, np.number) and value.size >= min_size
 
 
 def _walk_matlab(value):
@@ -146,7 +146,7 @@ def _name_of_matlab_signal(value) -> str:
     return str(name).lower()
 
 
-def _extract_paderborn_vibration(path: Path) -> np.ndarray | None:
+def _extract_paderborn_vibration(path: Path, min_size: int = WINDOW_SIZE) -> np.ndarray | None:
     """Extract the primary vibration channel from a Paderborn MATLAB file."""
     try:
         mat = scipy.io.loadmat(path, squeeze_me=True, struct_as_record=False)
@@ -158,13 +158,13 @@ def _extract_paderborn_vibration(path: Path) -> np.ndarray | None:
     numeric_candidates = []
     for obj in _walk_matlab(mat):
         name = _name_of_matlab_signal(obj)
-        if hasattr(obj, "Data") and _is_numeric_vector(getattr(obj, "Data")):
+        if hasattr(obj, "Data") and _is_numeric_vector(getattr(obj, "Data"), min_size):
             data = np.asarray(getattr(obj, "Data")).flatten().astype(np.float32)
             if "vibration" in name or "acc" in name:
                 named_candidates.append(data)
             else:
                 numeric_candidates.append(data)
-        elif _is_numeric_vector(obj):
+        elif _is_numeric_vector(obj, min_size):
             numeric_candidates.append(np.asarray(obj).flatten().astype(np.float32))
 
     if named_candidates:
@@ -209,6 +209,8 @@ def load_paderborn_with_metadata(
     bearings: tuple[str, ...] | None = DEFAULT_BEARINGS,
     max_files_per_bearing: int | None = None,
     max_files_per_condition: int | None = None,
+    window_size: int = WINDOW_SIZE,
+    stride: int = STRIDE,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """Load extracted Paderborn MATLAB files as windowed anomaly data."""
     mat_paths = sorted(mat_dir.rglob("*.mat"))
@@ -242,11 +244,11 @@ def load_paderborn_with_metadata(
         per_bearing_seen[bearing] = seen + 1
         per_condition_seen[condition_key] = condition_seen + 1
 
-        signal = _extract_paderborn_vibration(path)
-        if signal is None or len(signal) < WINDOW_SIZE:
+        signal = _extract_paderborn_vibration(path, min_size=window_size)
+        if signal is None or len(signal) < window_size:
             print(f"[WARN] Skipping {path}: no usable vibration vector")
             continue
-        segs = _segment(signal)
+        segs = _segment(signal, window_size=window_size, stride=stride)
         if len(segs) == 0:
             continue
 

@@ -140,6 +140,11 @@ def train_deep_model(
     for epoch in tqdm(range(1, max_epochs + 1), desc="  train", unit="ep"):
         _train_epoch(model, tr_ld, optimiser, device)
         val_loss, _, _ = _eval_epoch(model, va_ld, device)
+        if not np.isfinite(val_loss):
+            no_improv += 1
+            if no_improv >= patience:
+                break
+            continue
         scheduler.step(val_loss)
 
         if val_loss < best_val:
@@ -155,7 +160,8 @@ def train_deep_model(
 
     train_seconds = time.perf_counter() - start
     if best_state is None:
-        raise RuntimeError("Training did not produce a checkpoint.")
+        best_state = {k: p.detach().cpu().clone() for k, p in model.state_dict().items()}
+        best_val = float("nan")
     model.load_state_dict(best_state)
     return model, best_state, best_epoch, best_val, train_seconds
 

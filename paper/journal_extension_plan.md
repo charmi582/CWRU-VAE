@@ -165,9 +165,24 @@ Pilot training status:
 - Outputs:
   - `results/journal_external_paderborn/paderborn_metrics.csv`
   - `results/journal_external_paderborn/paderborn_pilot_summary.md`
+- Follow-up diagnostics:
+  - `results/journal_external_paderborn/paderborn_window_sensitivity_metrics.csv`
+  - `results/journal_external_paderborn/paderborn_window_sensitivity_summary.md`
+  - `results/journal_external_paderborn/paderborn_metrics_window_8192_deep.csv`
+  - `results/journal_external_paderborn/paderborn_8192_deep_summary.md`
 - The pilot result is substantially harder than CWRU. This should be framed as
   an important journal finding: CWRU can show near-perfect ranking, but external
   validation exposes cross-dataset transfer and threshold calibration limits.
+- Window-size sensitivity shows that the CWRU-style 1024-point window is too
+  short for Paderborn. Increasing the Paderborn window to 8192 points improves
+  the Isolation Forest ROC-AUC/PR-AUC and F1 substantially, so the journal paper
+  should discuss sampling-rate-aware segmentation instead of treating all
+  bearing datasets with the same window length.
+- In the 8192-point external pilot, Isolation Forest remains the strongest and
+  most stable baseline on this small Paderborn subset. This means the journal
+  manuscript should avoid claiming deep reconstruction models are universally
+  superior; the stronger claim is that the proposed pipeline exposes when
+  dataset-specific calibration and classical baselines are necessary.
 
 ## Formal Experiment Order
 

@@ -495,3 +495,28 @@ Pilot result note:
 - Unlike CWRU, the external subset is not trivially separable; the result should
   be discussed as evidence that CWRU-only evaluation overestimates deployment
   readiness.
+
+Window-size diagnostic:
+
+```bash
+python paderborn_window_sensitivity.py \
+  --window-sizes 1024 2048 4096 8192 \
+  --models iforest \
+  --protocols condition-wise bearing-wise file-wise \
+  --bearings K001 K002 KA01 KI01 \
+  --max-files-per-condition 2
+```
+
+The diagnostic shows that longer Paderborn windows improve external validation.
+The 8192-point follow-up can be reproduced with:
+
+```bash
+python paderborn_external_experiments.py \
+  --window-size 8192 \
+  --stride 4096 \
+  --bearings K001 K002 KA01 KI01 \
+  --protocols condition-wise bearing-wise file-wise \
+  --models vae cnn-ae lstm-ae iforest \
+  --max-files-per-condition 2 \
+  --output-name paderborn_metrics_window_8192_deep.csv
+```

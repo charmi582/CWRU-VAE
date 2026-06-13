@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from ae_model import ConvAE
-from config import BETA, LATENT_DIM, N_EPOCHS, PATIENCE, WINDOW_SIZE
+from config import BETA, LATENT_DIM, N_EPOCHS, PATIENCE, STRIDE, WINDOW_SIZE
 from journal_experiment_utils import (
     EvalRow,
     classification_metrics,
@@ -49,11 +49,14 @@ from vae_model import VAE
 OUT_DIR = os.path.join("results", "journal_external_paderborn")
 
 
-MODEL_FACTORIES = {
-    "vae": lambda: VAE(WINDOW_SIZE, LATENT_DIM, BETA),
-    "cnn-ae": lambda: ConvAE(WINDOW_SIZE, LATENT_DIM),
-    "lstm-ae": lambda: LSTMAE(WINDOW_SIZE, LATENT_DIM),
-}
+def model_factory(model_name: str, input_size: int):
+    if model_name == "vae":
+        return lambda: VAE(input_size, LATENT_DIM, BETA)
+    if model_name == "cnn-ae":
+        return lambda: ConvAE(input_size, LATENT_DIM)
+    if model_name == "lstm-ae":
+        return lambda: LSTMAE(input_size, LATENT_DIM)
+    raise ValueError(f"Unsupported deep model: {model_name}")
 
 
 def _write_rows(rows: list[EvalRow], path: str) -> None:
@@ -176,21 +179,33 @@ def evaluate_deep_model(
     max_epochs: int,
     patience: int,
     seed: int,
+    input_size: int,
 ) -> list[EvalRow]:
     X_train, X_val = normal_train_val_split(X_train_pool, val_fraction=0.2, seed=seed)
     device = get_device()
-    model, state, best_epoch, best_val, train_seconds = train_deep_model(
-        MODEL_FACTORIES[model_name],
-        X_train,
-        X_val,
-        max_epochs=max_epochs,
-        patience=patience,
-        device=device,
-    )
+    try:
+        model, state, best_epoch, best_val, train_seconds = train_deep_model(
+            model_factory(model_name, input_size),
+            X_train,
+            X_val,
+            max_epochs=max_epochs,
+            patience=patience,
+            device=device,
+        )
+    except RuntimeError as exc:
+        print(f"  [SKIP] {model_name} failed during training: {exc}")
+        return []
     train_scores = reconstruction_errors(model, X_train, device)
     val_scores = reconstruction_errors(model, X_val, device)
     test_scores = reconstruction_errors(model, X_test, device)
-    latency = cpu_latency_ms_per_window(model)
+    if not (
+        np.isfinite(train_scores).all()
+        and np.isfinite(val_scores).all()
+        and np.isfinite(test_scores).all()
+    ):
+        print(f"  [SKIP] {model_name} produced non-finite anomaly scores.")
+        return []
+    latency = cpu_latency_ms_per_window(model, input_size=input_size)
 
     model_path = os.path.join(
         OUT_DIR,
@@ -259,6 +274,9 @@ def run(
     download: bool,
     extract: bool,
     mat_dir: Path,
+    window_size: int,
+    stride: int,
+    output_name: str = "paderborn_metrics.csv",
 ) -> list[EvalRow]:
     ensure_dir(OUT_DIR)
     if download:
@@ -271,6 +289,8 @@ def run(
         bearings=bearings,
         max_files_per_bearing=max_files_per_bearing,
         max_files_per_condition=max_files_per_condition,
+        window_size=window_size,
+        stride=stride,
     )
     X = normalize_per_sample(X_raw)
     y = y_raw
@@ -313,10 +333,11 @@ def run(
                     max_epochs=max_epochs,
                     patience=patience,
                     seed=seed,
+                    input_size=window_size,
                 )
             rows.extend(model_rows)
 
-    out_path = os.path.join(OUT_DIR, "paderborn_metrics.csv")
+    out_path = os.path.join(OUT_DIR, output_name)
     _write_rows(rows, out_path)
     print(f"\nWrote {out_path}")
     return rows
@@ -346,6 +367,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--download", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
+    parser.add_argument("--window-size", type=int, default=WINDOW_SIZE)
+    parser.add_argument("--stride", type=int, default=STRIDE)
+    parser.add_argument("--output-name", default="paderborn_metrics.csv")
     return parser.parse_args()
 
 
@@ -364,4 +388,7 @@ if __name__ == "__main__":
         download=args.download,
         extract=args.extract,
         mat_dir=args.mat_dir,
+        window_size=args.window_size,
+        stride=args.stride,
+        output_name=args.output_name,
     )
