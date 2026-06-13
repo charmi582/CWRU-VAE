@@ -1,27 +1,22 @@
-% TCSE / journal extended revised version
+% TCSE 2026 Chinese regular paper
 % Overleaf setting: Menu -> Compiler -> XeLaTeX
-% Upload figures under results/plots/ or put figures beside this .tex file.
-\documentclass[conference]{IEEEtran}
+% This version follows the TCSE template structure.
+\documentclass[conference,compsoc]{IEEEtran}
 \IEEEoverridecommandlockouts
 
-\usepackage{fontspec}
-\usepackage{xeCJK}
+\usepackage{tcse}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{xcolor}
+\usepackage{float}
+\usepackage[section]{placeins}
 \usepackage{cite}
 \usepackage{url}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
 \graphicspath{{./}{results/plots/}}
-
-% Overleaf usually provides Noto CJK fonts. The fallback keeps local builds usable.
-\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{TeX Gyre Termes}}
-\IfFontExistsTF{Noto Serif CJK TC}
-  {\setCJKmainfont{Noto Serif CJK TC}}
-  {\IfFontExistsTF{Noto Serif CJK SC}{\setCJKmainfont{Noto Serif CJK SC}}{\setCJKmainfont{AR PL UMing TW}}}
 
 \begin{document}
 
@@ -30,9 +25,11 @@
 \large A Reproducible Unsupervised Anomaly Detection Software Pipeline for Industrial Equipment Health Monitoring: A VAE-Based Bearing Vibration Analysis Case Study}
 
 \author{
-\IEEEauthorblockN{張家軒\IEEEauthorrefmark{1}，張俊隆\IEEEauthorrefmark{1}}
-\IEEEauthorblockA{\IEEEauthorrefmark{1}
-國立勤益科技大學人工智慧應用工程系\\
+\IEEEauthorblockN{張家軒\textsuperscript{\footnotesize 1}
+\hspace{.5em}
+張俊隆\textsuperscript{\footnotesize 1}}
+\IEEEauthorblockA{\textsuperscript{\upshape\footnotesize 1}國立勤益科技大學人工智慧應用工程系}
+\IEEEauthorblockA{\upshape
 Department of Artificial Intelligence Applications Engineering, National Chin-Yi University of Technology\\
 Email: h927889932@gmail.com, VincentChang0304@ncut.edu.tw}
 }
@@ -54,6 +51,8 @@ Email: h927889932@gmail.com, VincentChang0304@ncut.edu.tw}
 \begin{IEEEkeywords}
 無監督異常偵測，變分自編碼器，可重現軟體流程，工業健康監測，軸承故障，閾值校準，噪音魯棒性
 \end{IEEEkeywords}
+
+\IEEEpeerreviewmaketitle
 
 \section{研究背景與動機}
 旋轉機械設備中，軸承故障是常見且具代表性的失效來源之一。
