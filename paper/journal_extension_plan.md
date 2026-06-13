@@ -184,6 +184,50 @@ Pilot training status:
   superior; the stronger claim is that the proposed pipeline exposes when
   dataset-specific calibration and classical baselines are necessary.
 
+### 6. Federated Normal-Only Deployment Extension
+
+Implemented:
+
+- `federated_normal_experiment.py`
+
+Motivation:
+
+> Each company or factory site may own private normal bearing data. Federated
+> learning allows clients to train local normal-only anomaly detectors and share
+> only model parameters for aggregation, without exposing raw vibration windows.
+
+Current pilot:
+
+```bash
+python federated_normal_experiment.py \
+  --model cnn-ae \
+  --clients-by bearing \
+  --bearings K001 K002 KA01 KI01 \
+  --window-size 8192 \
+  --stride 4096 \
+  --max-files-per-condition 1 \
+  --rounds 3 \
+  --local-epochs 1 \
+  --include-fault-audit
+```
+
+Outputs:
+
+- `results/federated_normal/federated_normal_metrics.csv`
+- `results/federated_normal/federated_normal_summary.md`
+
+Interpretation:
+
+- Training remains normal-only and privacy-preserving.
+- Raw client windows are never shared with the server.
+- The primary normal-only metric is client false alarm rate.
+- Fault data, when available, are used only as an audit set and not for
+  federated training.
+- The first pilot should be framed as a deployment architecture proof, not as
+  an accuracy improvement claim. The current CNN-AE pilot has low optional fault
+  recall, so future work should compare FedAvg with local-only and centralized
+  normal-only baselines before making any performance claim.
+
 ## Formal Experiment Order
 
 1. Run CWRU strict protocols with `iforest` first to validate all splits.
@@ -193,9 +237,11 @@ Pilot training status:
 4. Add external dataset loader. **Done for Paderborn scaffold.**
 5. Run Paderborn external validation experiments after data download/extraction.
    **Pilot done on a 4-bearing subset.**
-6. Run cross-dataset experiments if signal preprocessing assumptions remain
+6. Run federated normal-only deployment experiments. **Initial FedAvg pilot
+   done.**
+7. Run cross-dataset experiments if signal preprocessing assumptions remain
    comparable.
-7. Rewrite journal manuscript around threshold calibration and deployment
+8. Rewrite journal manuscript around threshold calibration and deployment
    stability.
 
 ## Recommended Main Claim

@@ -11,6 +11,7 @@ results/models/load_wise_*.pt
 results/models/ae_load_wise_*.pt
 results/journal_strict_cwru/models/
 results/journal_external_paderborn/models/
+results/federated_normal/*.pt
 
 # ── PPT/Office 暫存檔 ──────────────────────────────────
 ~$*.pptx

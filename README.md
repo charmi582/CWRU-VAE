@@ -520,3 +520,41 @@ python paderborn_external_experiments.py \
   --max-files-per-condition 2 \
   --output-name paderborn_metrics_window_8192_deep.csv
 ```
+
+---
+
+## Journal Extension: Federated Normal-Only Deployment
+
+The federated extension simulates multiple companies or factory sites as
+clients. Each client keeps its own normal bearing windows locally, trains a
+local reconstruction model, and shares only model parameters with the server for
+FedAvg aggregation. Raw vibration windows are not transmitted.
+
+Pilot run:
+
+```bash
+python federated_normal_experiment.py \
+  --model cnn-ae \
+  --clients-by bearing \
+  --bearings K001 K002 KA01 KI01 \
+  --window-size 8192 \
+  --stride 4096 \
+  --max-files-per-condition 1 \
+  --rounds 3 \
+  --local-epochs 1 \
+  --include-fault-audit
+```
+
+Outputs:
+
+- `results/federated_normal/federated_normal_metrics.csv`
+- `results/federated_normal/federated_normal_summary.md`
+
+Important framing:
+
+- Federated training uses normal data only.
+- Fault data are optional audit data and are not used during training.
+- The main normal-only metric is false alarm rate under client/site shift.
+- This extension supports a privacy-preserving deployment story; it should not
+  be claimed as an automatic accuracy improvement without local-only and
+  centralized comparisons.
