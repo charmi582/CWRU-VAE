@@ -1,0 +1,15 @@
+\begin{table}[H]
+\caption{Expanded Paderborn 使用 Isolation Forest 與 validation P95 calibration 之 protocol-specific 結果。}
+\label{tab:paderborn_expanded}
+\centering
+\small
+\begin{tabular}{l l r r r r r}
+\toprule
+Protocol & Model & ROC-AUC & PR-AUC & F1 & FAR & Miss \\
+\midrule
+bearing-wise & iforest & 0.8318 & 0.7421 & 0.4711 & 0.0502 & 0.6018 \\
+condition-wise & iforest & 0.7896 & 0.8177 & 0.5817 & 0.1254 & 0.5457 \\
+file-wise & iforest & 0.7207 & 0.9730 & 0.5441 & 0.2077 & 0.6188 \\
+\bottomrule
+\end{tabular}
+\end{table}

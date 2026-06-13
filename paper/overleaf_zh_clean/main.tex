@@ -1,0 +1,238 @@
+% !TEX program = xelatex
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\setmainfont{TeX Gyre Termes}
+\setCJKmainfont{FandolSong-Regular}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{caption}
+
+\graphicspath{{figures/}}
+\renewcommand{\arraystretch}{1.15}
+
+\newcommand{\aucroc}{AUC--ROC}
+\newcommand{\prauc}{PR--AUC}
+\newcommand{\far}{FAR}
+\newcommand{\miss}{Miss}
+\newcommand{\hi}{HI}
+
+\title{可校準模糊健康指標之無監督軸承異常偵測流程：\\嚴格泛化驗證、Paderborn 外部資料集與可重複實現研究}
+\author{張祐綸\\國立勤益科技大學 人工智慧應用工程系\\\texttt{s3B340127@gm.student.ncut.edu.tw}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+工業軸承健康監測常面臨故障標註稀少、操作條件變動與異常閾值不穩定等問題。許多研究在 CWRU 軸承資料集上可取得近乎完美的排序指標，但若資料切分方式未能避免相鄰滑動視窗或相同實驗條件的重複出現，模型效能容易被高估。本文提出一套可重複實現的 normal-only 無監督軸承異常偵測流程，研究主軸聚焦於嚴格泛化驗證、Paderborn 外部資料集、threshold calibration、fuzzy health index 與完整實驗可重現性。方法上，本文以 VAE、CNN-AE、LSTM-AE 與 Isolation Forest 作為可替換異常偵測模型，於 CWRU 上進行 load-wise、fault-size-wise 與 file-wise split，並於 Paderborn 上進行 condition-wise、bearing-wise 與 file-wise 外部驗證。實驗結果顯示，\aucroc{} 雖能描述異常分數排序能力，但不足以反映工業部署時的 false alarm rate 與 miss rate。進一步而言，不同資料集與不同 protocol 下，P95、P99 與 MAD 閾值策略呈現明顯差異，因此本文將資料集特定與 protocol-specific threshold calibration 視為核心貢獻。最後，本文提出基於 validation-normal score anchors 的 fuzzy health index，將單一異常分數轉換為 normal、warning、fault 與 uncertain region，以提升異常決策的可解釋性與分級預警能力。
+\end{abstract}
+
+\noindent\textbf{關鍵詞：} 軸承健康監測；無監督異常偵測；threshold calibration；模糊健康指標；Paderborn；CWRU；可重複實現
+
+\section{緒論}
+
+軸承是旋轉機械與工業設備中最重要的零組件之一。當軸承產生磨耗、裂紋或局部故障時，設備可能出現振動異常、效率下降、停機甚至安全風險。因此，利用振動訊號建立可靠的健康監測方法，是預知保養與智慧製造中重要的研究方向。
+
+在實務現場中，正常運轉資料通常較容易取得，而故障資料稀少且標註成本高。因此，僅使用正常資料訓練的 normal-only anomaly detection 特別適合軸承健康監測。然而，單純在標準資料集上取得高 \aucroc{} 並不代表模型具備部署能力。以 CWRU 為例，若使用隨機視窗層級切分，相鄰視窗可能同時出現在訓練與測試中，使得模型評估過度樂觀。另一方面，即使異常分數排序良好，實際部署仍需要決定異常閾值，而閾值會直接影響誤報與漏報。
+
+基於上述問題，本文不將研究定位為單一 VAE 模型的效能展示，而是提出一套可重複實現的軸承異常偵測流程。整體流程如圖~\ref{fig:workflow} 所示，包含資料前處理、嚴格資料切分、normal-only 模型訓練、異常分數計算、資料集特定閾值校準，以及 fuzzy health index 決策層。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig01_workflow.png}
+\caption{本文提出之可重複實現無監督軸承健康監測流程。}
+\label{fig:workflow}
+\end{figure}
+
+本文主要貢獻如下：
+\begin{enumerate}
+    \item 建立一套可重複實現的 normal-only 軸承異常偵測流程，支援 VAE、CNN-AE、LSTM-AE 與 Isolation Forest 等可替換模型。
+    \item 於 CWRU 進行 load-wise、fault-size-wise 與 file-wise split，並於 Paderborn 進行 condition-wise、bearing-wise 與 file-wise 外部資料集驗證，以降低 sliding-window leakage 與單一資料集高估問題。
+    \item 系統性比較 train/validation P95、P99 與 MAD threshold，證明 threshold calibration 對 false alarm rate 與 miss rate 的影響不亞於模型本身排序能力。
+    \item 提出 fuzzy health index，將異常分數轉換為 normal、warning、fault 與 uncertain region，使異常偵測結果更符合工業分級預警需求。
+\end{enumerate}
+
+\section{相關研究}
+
+傳統軸承故障診斷常使用時域、頻域與時頻域特徵，例如 RMS、kurtosis、crest factor、impulse factor 與頻譜質心等，再搭配機器學習模型進行分類或異常偵測。此類方法具有一定解釋性，但容易受限於人工特徵與特定工況假設。Isolation Forest 是常見的無監督異常偵測方法，可在統計特徵空間中衡量樣本被孤立的程度。
+
+深度學習方法則能直接從原始訊號或時間序列中學習表示。CNN、LSTM、AE 與 VAE 已被廣泛應用於軸承診斷與 anomaly detection。VAE 透過 KL regularization 使 latent representation 接近先驗分布，理論上能學習正常資料的平滑流形。然而，在 CWRU 等高度可分資料集上，AE、VAE 與傳統方法都可能取得接近滿分的 \aucroc{}，因此僅以單一資料集排序指標比較模型並不足夠。
+
+模糊理論適合描述邊界不清楚或具不確定性的決策問題。對軸承健康監測而言，異常分數位於閾值附近的樣本未必應被強制判定為正常或故障，而可被視為 warning 或 uncertain 狀態。因此，本文將 fuzzy theory 放在 anomaly score 之後，作為 calibrated decision layer，而不是取代原本的異常偵測模型。
+
+\section{研究方法}
+
+\subsection{問題定義}
+
+設單一振動視窗為 $x_i \in \mathbb{R}^{L}$，其中 $L$ 為 window size。訓練階段僅使用正常資料 $\mathcal{X}_{N}$，模型學習正常軸承振動訊號的表示或重建規律。測試階段，模型輸出 anomaly score $s_i$，分數越高代表越可能偏離正常狀態。本文屬於 normal-only unsupervised anomaly detection，訓練過程不使用故障樣本。
+
+\subsection{Normal-only reconstruction models}
+
+對 AE、CNN-AE 與 LSTM-AE，異常分數定義為逐視窗 reconstruction mean squared error：
+\begin{equation}
+s(x)=\frac{1}{L}\sum_{t=1}^{L}(x_t-\hat{x}_t)^2.
+\end{equation}
+
+VAE 的訓練目標包含 reconstruction loss 與 KL divergence：
+\begin{equation}
+\mathcal{L}(x)=\mathrm{MSE}(x,\hat{x})\cdot L+\beta D_{KL}(q_{\phi}(z|x)\Vert \mathcal{N}(0,I)).
+\end{equation}
+推論時，本文使用 latent mean 進行 deterministic reconstruction，並以 reconstruction error 作為 anomaly score。
+
+Isolation Forest 則使用 12 維統計特徵作為輸入，包含 mean、standard deviation、RMS、peak、peak-to-peak、skewness、kurtosis、crest factor、impulse factor、shape factor、spectrum centroid 與 bandwidth。
+
+\subsection{Threshold calibration}
+
+給定正常訓練分數 $\mathcal{S}_{train}$ 與正常驗證分數 $\mathcal{S}_{val}$，本文比較以下閾值：
+\begin{equation}
+\tau_{train,p}=P_p(\mathcal{S}_{train}),\qquad \tau_{val,p}=P_p(\mathcal{S}_{val}),
+\end{equation}
+其中 $p\in\{95,99\}$。另外也比較 MAD-based robust threshold：
+\begin{equation}
+\tau_{MAD}=\mathrm{median}(\mathcal{S}_{train})+5\cdot 1.4826\cdot \mathrm{MAD}(\mathcal{S}_{train}).
+\end{equation}
+
+硬閾值決策定義為：
+\begin{equation}
+\hat{y}_i=\begin{cases}
+1, & s_i>\tau,\\
+0, & s_i\leq\tau.
+\end{cases}
+\end{equation}
+
+\subsection{Fuzzy health index}
+
+為了避免單一硬閾值無法描述灰色區域，本文使用 validation-normal score 的 $P50$、$P90$、$P95$ 與 $P99$ 作為 fuzzy anchors。令 $a=P50$、$b=P90$、$c=P95$、$d=P99$。定義 ramp function：
+\begin{equation}
+R(s;u,v)=\mathrm{clip}\left(\frac{s-u}{v-u},0,1\right).
+\end{equation}
+
+normal、warning 與 fault membership 定義如下：
+\begin{align}
+\mu_N(s)&=1-R(s;b,c),\\
+\mu_W(s)&=\min(R(s;a,c),1-R(s;c,d)),\\
+\mu_F(s)&=R(s;c,d).
+\end{align}
+
+fuzzy health index 定義為：
+\begin{equation}
+\hi(s)=\frac{0\cdot\mu_N(s)+0.5\cdot\mu_W(s)+1.0\cdot\mu_F(s)}{\mu_N(s)+\mu_W(s)+\mu_F(s)+\epsilon}.
+\end{equation}
+其中 $\hi\in[0,1]$，越接近 1 表示越異常。本文比較三種策略：hard validation P95、warning-as-alarm ($\hi\geq0.5$) 與 fault-only alarm ($\hi\geq0.75$)。
+
+\section{實驗設計}
+
+\subsection{資料集與切分協定}
+
+本文使用 CWRU 與 Paderborn 軸承資料集。CWRU 以 1024 點視窗作為主要設定；Paderborn 經 window-size sensitivity analysis 後，以 8192 點視窗作為主實驗設定。表~\ref{tab:dataset_protocols} 列出資料集與協定。
+
+\input{tables/tab_dataset_protocols.tex}
+
+CWRU 包含 load-wise、fault-size-wise 與 file-wise split。Paderborn 包含 condition-wise、bearing-wise 與 file-wise protocols。這些切分分別用於檢驗跨負載、跨故障尺寸、跨檔案、跨工況與跨軸承狀態的泛化能力。
+
+\subsection{評估指標}
+
+本文回報 \aucroc{}、\prauc{}、precision、recall、F1-score、false alarm rate 與 miss rate。定義如下：
+\begin{equation}
+\mathrm{FAR}=\frac{FP}{FP+TN},\qquad \mathrm{Miss}=\frac{FN}{FN+TP}.
+\end{equation}
+其中 FAR 代表正常樣本被誤判為異常的比例，Miss 代表故障樣本被漏判的比例。
+
+\section{結果與討論}
+
+\subsection{CWRU 嚴格泛化驗證}
+
+表~\ref{tab:cwru_strict} 顯示 CWRU 嚴格切分下各模型之平均結果。多數深度重建模型在 \aucroc{} 與 \prauc{} 上仍維持高分，表示 CWRU 正常與故障樣本排序上高度可分。然而，在 file-wise 與 load-wise 條件下，部分模型 FAR 明顯上升，顯示排序能力高並不代表閾值決策穩定。
+
+\input{tables/tab_cwru_strict.tex}
+
+\subsection{Paderborn 外部資料集驗證}
+
+Paderborn 外部驗證顯示，直接沿用 CWRU 的 1024 點視窗並不理想。圖~\ref{fig:window_sensitivity} 顯示，window size 從 1024 增加至 8192 時，Paderborn 上的 \aucroc{}、\prauc{} 與 F1 均有改善，因此本文將 8192 點視窗作為 Paderborn 主實驗設定。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{fig04_window_sensitivity.png}
+\caption{Paderborn window-size sensitivity under validation P95.}
+\label{fig:window_sensitivity}
+\end{figure}
+
+表~\ref{tab:paderborn_expanded} 顯示 expanded Paderborn 的 protocol-specific 結果。相較 CWRU，Paderborn 明顯更具挑戰性，尤其在 file-wise 與 condition-wise 設定中，FAR 與 Miss 呈現明顯 trade-off。此結果說明 CWRU 的高 \aucroc{} 不應被直接解讀為跨資料集部署能力。
+
+\input{tables/tab_paderborn_expanded.tex}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{fig03_paderborn_protocols.png}
+\caption{Expanded Paderborn protocol results with validation P95.}
+\label{fig:paderborn_protocols}
+\end{figure}
+
+\subsection{Threshold calibration 分析}
+
+圖~\ref{fig:dataset_calibration} 比較 CWRU 與 Paderborn 在不同 calibration policy 下的 F1、FAR 與 Miss。CWRU 中 validation P95 與 P99 均能維持相對可接受的操作點；但在 Paderborn 中，P99 與 MAD threshold 過於保守，導致 miss rate 大幅上升。這表示不同資料集與不同 protocol 必須分別進行 threshold calibration，不能直接套用單一固定閾值。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.94\textwidth]{fig02_dataset_calibration.png}
+\caption{Dataset-specific threshold calibration comparison.}
+\label{fig:dataset_calibration}
+\end{figure}
+
+\subsection{Fuzzy health index 分析}
+
+表~\ref{tab:fuzzy_policy} 與圖~\ref{fig:fuzzy_policy} 顯示 fuzzy health-index decision layer 之結果。CWRU 上，fault-only high-confidence policy 可降低 FAR，但會提高 Miss。Paderborn 上，fuzzy health index 並未直接提升 F1，但能揭露更大的 uncertain region。因此，本文不宣稱 fuzzy theory 使模型準確率全面提升，而是將其定位為可解釋的分級決策層。
+
+\input{tables/tab_fuzzy_policy.tex}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.94\textwidth]{fig05_fuzzy_policy.png}
+\caption{Fuzzy health-index decision policy comparison.}
+\label{fig:fuzzy_policy}
+\end{figure}
+
+整體而言，fuzzy health index 的主要價值在於將硬閾值附近的樣本表示為 warning 或 uncertain，而不是強制二元分類。這對工業健康監測特別重要，因為現場維護決策通常需要分級預警，而不只是 normal/fault 的單一輸出。
+
+\section{限制與未來研究}
+
+本文仍有若干限制。第一，Paderborn expanded 主實驗目前以 Isolation Forest 作為主要外部 baseline，未來可進一步擴充 deep reconstruction models 在完整 Paderborn 設定下的結果。第二，fuzzy health index 目前以 validation-normal percentiles 作為 anchors，後續可結合專家知識或成本敏感式 fuzzy rule tuning。第三，本文不將 federated learning 納入主文，以避免研究主線過度分散。跨工廠資料不可共享情境下的 privacy-preserving federated fuzzy health monitoring 將作為下一階段研究。
+
+\section{結論}
+
+本文提出一套可重複實現的 normal-only 無監督軸承異常偵測流程，並將研究主軸從單一模型效能擴展至嚴格泛化驗證、Paderborn 外部資料集、threshold calibration 與 fuzzy health index。實驗結果顯示，CWRU 上的高 \aucroc{} 不足以代表工業部署能力；當評估轉向跨負載、跨檔案、跨故障尺寸與外部資料集時，FAR、Miss 與 threshold stability 更能反映系統實用性。本文提出的 fuzzy health index 則提供 normal、warning、fault 與 uncertain region 的分級決策，使異常偵測結果更適合工業健康監測情境。
+
+\section*{Acknowledgements}
+本研究感謝公開 CWRU 與 Paderborn Bearing Dataset 之研究單位。
+
+\section*{Declarations}
+\textbf{Funding:} 待補。\\
+\textbf{Conflict of interest:} The author declares no conflict of interest.\\
+\textbf{Data availability:} 本研究使用之 CWRU 與 Paderborn 軸承資料集皆為公開資料集。程式與實驗結果可由 GitHub repository 重複執行。
+
+\begin{thebibliography}{99}
+\bibitem{loparo2012cwru} Loparo, K. A. Bearings Vibration Data Set. Case Western Reserve University Bearing Data Center, 2012.
+\bibitem{smith2015cwru} Smith, W. A., Randall, R. B. Rolling element bearing diagnostics using the Case Western Reserve University data: A benchmark study. Mechanical Systems and Signal Processing, 64, 100--131, 2015.
+\bibitem{lessmeier2016paderborn} Lessmeier, C., Kimotho, J. K., Zimmer, D., Sextro, W. Condition monitoring of bearing damage in electromechanical drive systems: A benchmark data set. PHM Society European Conference, 2016.
+\bibitem{kingma2014vae} Kingma, D. P., Welling, M. Auto-Encoding Variational Bayes. ICLR, 2014.
+\bibitem{chalapathy2019deepad} Chalapathy, R., Chawla, S. Deep learning for anomaly detection: A survey. arXiv:1901.03407, 2019.
+\bibitem{liu2008iforest} Liu, F. T., Ting, K. M., Zhou, Z.-H. Isolation Forest. IEEE International Conference on Data Mining, 413--422, 2008.
+\bibitem{hochreiter1997lstm} Hochreiter, S., Schmidhuber, J. Long short-term memory. Neural Computation, 9(8), 1735--1780, 1997.
+\bibitem{zadeh1965fuzzy} Zadeh, L. A. Fuzzy sets. Information and Control, 8(3), 338--353, 1965.
+\end{thebibliography}
+
+\end{document}

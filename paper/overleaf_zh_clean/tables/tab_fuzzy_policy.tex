@@ -1,0 +1,18 @@
+\begin{table}[H]
+\caption{Fuzzy health-index decision policy 比較。}
+\label{tab:fuzzy_policy}
+\centering
+\scriptsize
+\begin{tabular}{l l r r r r r r}
+\toprule
+Dataset & Policy & F1 & FAR & Miss & Uncertain & HI normal & HI fault \\
+\midrule
+CWRU & fuzzy\_fault\_only\_hi75 & 0.8557 & 0.0331 & 0.1722 & 0.0866 & 0.1122 & 0.8884 \\
+CWRU & fuzzy\_warning\_as\_alarm\_hi50 & 0.8491 & 0.0696 & 0.1005 & 0.0866 & 0.1122 & 0.8884 \\
+CWRU & hard\_val\_p95 & 0.8491 & 0.0696 & 0.1005 & 0.0866 & 0.1122 & 0.8884 \\
+Paderborn & fuzzy\_fault\_only\_hi75 & 0.3911 & 0.0683 & 0.7212 & 0.1558 & 0.1475 & 0.4115 \\
+Paderborn & fuzzy\_warning\_as\_alarm\_hi50 & 0.5200 & 0.1194 & 0.5950 & 0.1558 & 0.1475 & 0.4115 \\
+Paderborn & hard\_val\_p95 & 0.5200 & 0.1194 & 0.5950 & 0.1558 & 0.1475 & 0.4115 \\
+\bottomrule
+\end{tabular}
+\end{table}
