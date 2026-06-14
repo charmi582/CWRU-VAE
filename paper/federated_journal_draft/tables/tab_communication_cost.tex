@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{FedAvg communication-cost estimate for 10 rounds. The estimate counts FP32 model-parameter upload and download traffic. Raw vibration windows are not transmitted.}
+\label{tab:comm_cost}
+\small
+\begin{tabularx}{\textwidth}{lXrrrr}
+\toprule
+Model & Client split & Clients & Model size (MB) & Upload+download (MB) & Raw data shared \\
+\midrule
+CNN-AE & Bearing & 6 & 128.57 & 15428.80 & No \\
+CNN-AE & Condition & 4 & 128.57 & 10285.87 & No \\
+VAE & Bearing & 6 & 128.60 & 15432.57 & No \\
+VAE & Condition & 4 & 128.60 & 10288.38 & No \\
+\bottomrule
+\end{tabularx}
+\end{table}

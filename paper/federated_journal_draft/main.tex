@@ -1,0 +1,148 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath,amssymb}
+\usepackage{url}
+\usepackage{microtype}
+
+\title{Privacy-Preserving Normal-Only Bearing Health Monitoring Using Federated Reconstruction Models and Fuzzy Health Decisions}
+
+\author{
+Chia-Hsuan Chang, Chun-Lung Chang, and Chuan-Kang Liu\\
+Department of Artificial Intelligence Application Engineering\\
+Anonymous Institution, Taiwan\\
+\texttt{s3B341027@gm.student.ncut.edu.tw, VincentChang0304@ncut.edu.tw, ckliu@ncut.edu.tw}
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Industrial bearing monitoring systems are increasingly expected to support cross-site learning while respecting data ownership, confidentiality, and deployment constraints. In practice, vibration data collected by different companies or factory sites may contain sensitive information about machines, production schedules, operating conditions, and maintenance policies. Directly centralizing such data is therefore often unrealistic. This paper studies privacy-preserving normal-only bearing health monitoring using federated reconstruction models and fuzzy health decisions. Each client trains on local normal vibration windows, while a server aggregates model parameters through FedAvg without receiving raw vibration signals. Unlike studies that present federated learning mainly as an accuracy-improving technique, this work evaluates it as a deployment mechanism and compares it with local-only and centralized references. Experiments on the Paderborn bearing dataset simulate clients by bearing identity and operating condition. CNN-based autoencoders are trained under normal-only assumptions, calibrated with either client-specific or pooled validation anchors, and connected to a fuzzy health-index layer that reports normal, warning, fault, and uncertain operating regions. Results show that FedAvg does not automatically outperform centralized or local-only training in F1. However, it provides a privacy-preserving collaborative monitoring baseline and exposes important deployment behavior: threshold calibration strongly affects false-alarm and miss-rate tradeoffs under non-IID clients, and fuzzy health-index drift reveals client-level instability that is hidden by mean ranking metrics. The contribution is therefore a reproducible evaluation framework for federated bearing health monitoring that jointly reports centralized gap, local-only tradeoff, client stability, calibration behavior, fuzzy health decisions, convergence, and communication cost.
+\end{abstract}
+
+\noindent\textbf{Keywords:} federated learning; bearing health monitoring; normal-only anomaly detection; privacy-preserving condition monitoring; fuzzy health index; threshold calibration; autoencoder
+
+\section{Introduction}
+
+Rotating machinery is central to manufacturing, transportation, energy systems, and many other industrial environments. Bearings are among the most frequently monitored components because local defects can propagate into severe downtime, safety risks, and maintenance cost. Data-driven bearing condition monitoring has therefore become an important research topic, supported by public datasets and deep learning models for vibration-based fault diagnosis.
+
+Despite rapid progress, many published bearing diagnosis studies rely on assumptions that are difficult to maintain in real deployments. First, training procedures often require labeled fault samples, although many factories only have abundant normal data and few confirmed faults. Second, experiments are frequently evaluated under window-level random splits, which can overestimate performance when adjacent sliding windows from the same file or condition appear in both training and testing. Third, cross-site collaboration is rarely treated as a first-class deployment constraint. In practical industrial settings, each company or site may be unwilling or unable to share raw vibration streams because those signals can reveal machine configuration, process load, operating schedule, or proprietary maintenance information.
+
+Federated learning offers a natural way to study this problem because clients can train locally and share model updates rather than raw data. However, for industrial health monitoring, the value of federated learning should not be reduced to whether it improves accuracy over a centralized model. A centralized model is usually an upper-reference setting that assumes unrestricted data sharing. The more relevant question is whether federated training can provide a useful privacy-preserving operating point compared with local-only training, and whether the resulting detector remains stable across heterogeneous clients.
+
+This paper focuses on privacy-preserving normal-only bearing health monitoring. We simulate multiple clients from the Paderborn bearing dataset using bearing-wise and condition-wise partitions. Each client trains only on normal vibration windows. Fault windows are used only for audit evaluation. We compare local-only, centralized, and federated FedAvg training, use CNN autoencoders as the main reconstruction model, and add a fuzzy health-index layer to convert anomaly scores into graded health decisions. We further compare client-specific and pooled threshold calibration to test whether decision thresholds remain stable under non-IID clients.
+
+The main contributions are as follows:
+
+\begin{itemize}
+    \item We formulate a privacy-preserving normal-only bearing monitoring problem in which raw vibration data remain local and only model parameters are exchanged.
+    \item We provide a deployment-oriented comparison among local-only, centralized, and federated FedAvg training under bearing-wise and condition-wise client partitions.
+    \item We evaluate threshold calibration as a core part of federated deployment, comparing client-specific and pooled validation anchors.
+    \item We connect reconstruction scores to a fuzzy health-index layer and report client-level false alarm, miss rate, uncertain rate, and health-index drift.
+    \item We release a reproducible experiment package including metrics, client-stability summaries, convergence curves, communication-cost estimates, and figure-generation scripts.
+\end{itemize}
+
+\section{Related Work}
+
+Bearing fault diagnosis has been studied using signal processing, classical machine learning, and deep neural networks. Traditional methods often rely on hand-crafted time-domain, frequency-domain, or time-frequency features followed by classifiers such as support vector machines, random forests, or nearest-neighbor models. Deep learning methods, including convolutional neural networks, recurrent networks, transformers, and autoencoders, reduce the need for manual feature engineering and have achieved strong performance on public bearing datasets.
+
+Recent work has also explored unsupervised and semi-supervised anomaly detection because industrial faults are rare and expensive to label. Autoencoders and variational autoencoders are common choices for normal-only learning: the model is trained to reconstruct healthy signals, and high reconstruction error is treated as anomalous. However, reconstruction-based monitoring depends heavily on threshold selection. A model may rank abnormal windows above normal windows while still producing unstable binary alarms when the threshold is transferred across loads, files, bearings, or datasets.
+
+Federated learning has received increasing attention in healthcare, manufacturing, Internet-of-Things, and predictive maintenance because it supports collaborative model training without centralizing raw data. FedAvg is the most widely used baseline: each client performs local optimization, and a server averages model parameters. For industrial monitoring, this privacy-preserving property is attractive, but non-IID client data can degrade convergence and make calibration difficult. Therefore, a federated bearing-monitoring study should evaluate not only mean accuracy, but also client-level stability, calibration shift, and deployment cost.
+
+Fuzzy decision systems are relevant because industrial maintenance decisions are rarely binary. A score slightly above a threshold may require observation rather than immediate shutdown. Fuzzy membership functions can translate anomaly scores into interpretable health states such as normal, warning, fault, and uncertain regions. In this work, fuzzy health decisions are used as a model-agnostic layer on top of reconstruction scores, allowing the same decision logic to be compared across local-only, centralized, and federated settings.
+
+\section{Method}
+
+This section defines the federated normal-only bearing health-monitoring workflow. The objective is not to predict exact remaining useful life. Instead, the goal is to provide privacy-preserving anomaly monitoring and graded health decisions using only normal data for training.
+
+\subsection{Problem Definition}
+
+Assume there are $K$ industrial clients. Client $k$ owns local vibration windows
+\[
+\mathcal{D}_k = \{x_i^{(k)}\}_{i=1}^{n_k},
+\]
+where the training subset contains normal windows only. Raw windows are not shared with the server or other clients. The task is to learn an anomaly scoring function $s(x)$ and a health decision function $h(x)$ that can detect abnormal bearing behavior during audit evaluation.
+
+Given a reconstruction model $f_\theta$, the anomaly score is defined as
+\[
+s(x)=\|x-f_\theta(x)\|_2^2.
+\]
+A binary threshold decision can be written as
+\[
+\hat{y}(x)=\mathbb{I}[s(x)>\tau],
+\]
+where $\tau$ is obtained from validation-normal scores. In this work, threshold calibration is treated as part of the deployment problem rather than a secondary post-processing detail.
+
+\subsection{Federated Training}
+
+In the federated setting, each client receives the current global model parameters $\theta_t$ at round $t$, performs local training on its own normal windows, and returns updated parameters $\theta_t^{(k)}$ to the server. The server aggregates client models by weighted averaging:
+\[
+\theta_{t+1}=\sum_{k=1}^{K}\frac{n_k}{\sum_j n_j}\theta_t^{(k)}.
+\]
+Only model parameters are transmitted. Raw vibration windows, validation scores, and local test windows remain at the client side unless explicitly used for aggregate reporting in the experiment.
+
+\subsection{Calibration and Fuzzy Health Index}
+
+Two calibration scopes are evaluated. In client-specific calibration, each client computes score anchors from its own validation-normal scores. In pooled calibration, validation-normal anchors are estimated from the union of validation scores across clients. For percentiles $p\in\{50,90,95,99\}$, the corresponding anchors are denoted as $q_p$.
+
+The fuzzy health-index layer maps anomaly scores to a continuous health index using percentile anchors. Low scores are interpreted as normal, intermediate scores as warning or uncertain, and high scores as fault-like. This produces both binary decisions and interpretable deployment quantities:
+
+\begin{itemize}
+    \item false alarm rate on normal audit windows,
+    \item miss rate on fault audit windows,
+    \item uncertain rate,
+    \item mean health index for normal and fault windows,
+    \item health gap between fault and normal windows.
+\end{itemize}
+
+\section{Experimental Design}
+
+The experiments use the Paderborn bearing dataset to simulate cross-site bearing monitoring. Clients are constructed in two ways. Bearing-wise clients represent different bearing units, while condition-wise clients represent different operating conditions. This design tests whether federated monitoring remains stable when local client distributions are heterogeneous.
+
+Three training modes are compared:
+
+\begin{itemize}
+    \item \textbf{Local-only}: each client trains its own normal-only detector without collaboration.
+    \item \textbf{Centralized}: normal windows from all clients are pooled into a single reference training set.
+    \item \textbf{Federated}: clients train locally and share only model weights through FedAvg.
+\end{itemize}
+
+The main model is a CNN-based autoencoder. FedAvg is run for 10 rounds with two local epochs per round. The centralized reference is trained for 20 epochs. All formal experiments are repeated with seeds 42, 202, and 777. Fault windows are reserved for audit evaluation and are never used during training.
+
+\section{Results}
+
+Table~\ref{tab:main_results} summarizes the current formal CNN-AE results under the hard validation P95 decision policy and fuzzy warning-as-alarm setting. The results should be interpreted as deployment behavior rather than a pure accuracy competition.
+
+\input{tables/tab_federated_summary}
+
+The main observation is that FedAvg does not automatically outperform local-only or centralized training. Under bearing-wise clients, centralized training with client-specific calibration obtains the highest F1 among the listed settings, while federated training remains below the centralized reference. Under condition-wise clients, FedAvg provides a comparable but still modest operating point. These results support a careful interpretation: federated learning enables privacy-preserving collaborative monitoring, but it does not remove the need for client-level calibration and stability analysis.
+
+Calibration scope has a visible effect. Pooled calibration often lowers false alarm rate but increases miss rate, especially under non-IID client partitions. This indicates that a shared threshold anchor may be too conservative for some clients. Therefore, client-specific calibration should be considered a necessary deployment component rather than an optional tuning detail.
+
+Communication cost is summarized in Table~\ref{tab:comm_cost}. FedAvg avoids sharing raw vibration windows, but model update traffic is not free. Reporting this cost is important because industrial deployment must balance privacy, bandwidth, model size, and update frequency.
+
+\input{tables/tab_communication_cost}
+
+\section{Discussion}
+
+The results lead to three important conclusions. First, federated learning should be framed as a privacy-preserving deployment mechanism, not as a guaranteed accuracy booster. The centralized model remains a useful upper-reference but assumes a data-sharing regime that may be unacceptable in industrial settings. Second, local-only training is a strong and necessary baseline. If a federated method cannot provide a better tradeoff than local-only training, its value must come from collaboration, standardization, cross-site comparability, or operational convenience rather than raw metrics alone. Third, threshold calibration is central to deployment. A model can show high PR-AUC while still producing poor alarms if the threshold does not transfer across clients.
+
+The fuzzy health index helps expose this issue because it reports graded health behavior instead of only binary alarms. Client health-gap drift can indicate that some clients require local recalibration, additional normal data, or separate model personalization. This finding is particularly relevant for factories where each site operates machines under different loads, speeds, maintenance histories, and sensor placements.
+
+\section{Limitations and Future Work}
+
+This study is limited to public bearing data and simulated clients. Real factories may contain stronger non-IID effects, sensor drift, missing data, changing loads, and maintenance interventions. The current experiment also focuses on anomaly monitoring rather than exact remaining useful life prediction. Predicting maintenance time would require run-to-failure data, event labels, or explicit degradation trajectories. Future work should evaluate personalization methods, secure aggregation, differential privacy, adaptive calibration, and real multi-site vibration datasets.
+
+\section{Conclusion}
+
+This paper presents a privacy-preserving federated framework for normal-only bearing health monitoring. By comparing local-only, centralized, and federated training under bearing-wise and condition-wise clients, the study shows that FedAvg should be evaluated as a deployment mechanism rather than an automatic accuracy improvement. The results highlight the importance of client-specific calibration, fuzzy health-index reporting, and client-stability analysis. The proposed framework provides a reproducible foundation for federated industrial health monitoring where raw vibration data cannot be centralized.
+
+\end{document}
