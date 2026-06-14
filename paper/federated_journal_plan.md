@@ -16,7 +16,7 @@ This paper studies whether bearing health monitoring can be deployed across mult
 
 **RQ3. Client stability.** Which clients suffer false-alarm, miss-rate, or health-index drift under local-only, centralized, and federated settings?
 
-**RQ4. Calibration under non-IID clients.** Does client-specific threshold calibration behave differently from pooled calibration when clients represent different bearings or operating conditions?
+**RQ4. Calibration under non-IID clients.** Does client-specific, pooled, or adaptive threshold calibration provide the best deployment tradeoff when clients represent different bearings or operating conditions?
 
 **RQ5. Non-IID federated adaptation.** Does FedProx, FedBN, or one-step client personalization reduce the false-alarm, miss-rate, or health-index drift observed with plain FedAvg?
 
@@ -26,7 +26,7 @@ This paper studies whether bearing health monitoring can be deployed across mult
 
 1. A privacy-preserving normal-only bearing monitoring framework that trains reconstruction models through local client updates and federated aggregation.
 2. A deployment-oriented comparison among local-only, centralized, FedAvg, FedProx, FedBN, and personalized federated settings under bearing-wise and condition-wise client partitions.
-3. A calibration analysis showing that threshold anchors are not neutral under non-IID clients; client-specific and pooled calibration change FAR/miss-rate behavior.
+3. A calibration analysis showing that threshold anchors are not neutral under non-IID clients; client-specific, pooled, and adaptive calibration change FAR/miss-rate behavior and client stability.
 4. A fuzzy health-index decision layer that converts anomaly scores into graded normal, warning, fault, and uncertain regions.
 5. A reproducible experiment package with metrics, client-stability summaries, convergence curves, communication-cost estimates, and figure-generation scripts.
 
@@ -61,10 +61,11 @@ This paper studies whether bearing health monitoring can be deployed across mult
 - Calibration:
   - client-specific validation anchors
   - pooled validation anchors
+  - adaptive drift-aware blended anchors
 
 ## Current Result Interpretation
 
-Plain FedAvg does not dominate local-only or centralized training in F1. This should be presented as an honest deployment result rather than a weakness. In realistic industrial settings, the value of federated learning is not automatic accuracy gain, but privacy-preserving collaboration. The stronger result is that non-IID adaptation matters: FedBN-personalized currently gives the strongest bearing-wise operating point, while personalized FedAvg, FedProx, and FedBN all improve over plain FedAvg under condition-wise clients. Calibration and client stability also change substantially even when ranking metrics such as PR-AUC remain high.
+Plain FedAvg does not dominate local-only or centralized training in F1. This should be presented as an honest deployment result rather than a weakness. In realistic industrial settings, the value of federated learning is not automatic accuracy gain, but privacy-preserving collaboration. The stronger result is that non-IID adaptation matters: FedBN-personalized currently gives the strongest bearing-wise operating point, while personalized FedAvg, FedProx, and FedBN all improve over plain FedAvg under condition-wise clients. Calibration and client stability also change substantially even when ranking metrics such as PR-AUC remain high. Client-specific calibration tends to give stronger F1, pooled calibration often reduces false alarms at the cost of more missed detections, and adaptive calibration can reduce client-to-client instability by blending both.
 
 ## Figures Already Available
 

@@ -9,6 +9,7 @@ Privacy-preserving normal-only bearing health monitoring using:
 - federated reconstruction models,
 - local-only / centralized / FedAvg / FedProx / FedBN / personalized comparison,
 - client-specific and pooled threshold calibration,
+- adaptive drift-aware threshold calibration,
 - fuzzy health-index decisions,
 - client stability analysis,
 - FedAvg communication-cost reporting.
@@ -39,6 +40,6 @@ Recommended placement:
 
 1. Replace the generic related-work paragraphs with cited literature from 2021-2026.
 2. Add the figure environments after the target journal format is chosen.
-3. Add adaptive calibration as a second-stage deployment policy.
+3. Add external validation on FEMTO-ST/IMS or write a limitation if external data quality is insufficient.
 4. Add a stronger threat-to-validity subsection for simulated clients.
 5. Clarify that this paper addresses privacy-preserving anomaly monitoring, not exact remaining useful life prediction.

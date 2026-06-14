@@ -262,6 +262,40 @@ def sanitize_scores(scores: np.ndarray) -> np.ndarray:
     return np.nan_to_num(scores, nan=fill, posinf=fill, neginf=lo)
 
 
+def robust_mad(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=np.float64)
+    median = float(np.median(values))
+    mad = float(np.median(np.abs(values - median)))
+    return max(mad, 1e-8)
+
+
+def adaptive_calibration_anchors(
+    client_scores: np.ndarray,
+    pooled_scores: np.ndarray,
+) -> tuple[float, float, float, float]:
+    """Blend client and pooled anchors according to validation-score drift.
+
+    The blend weight increases when a client's normal validation score
+    distribution differs from the pooled validation distribution. This keeps
+    clients close to the shared calibration when distributions match, while
+    moving toward client-specific thresholds under stronger non-IID drift.
+    """
+    percentiles = (50, 90, 95, 99)
+    client_anchors = np.array([np.percentile(client_scores, p) for p in percentiles], dtype=np.float64)
+    pooled_anchors = np.array([np.percentile(pooled_scores, p) for p in percentiles], dtype=np.float64)
+
+    client_median = float(np.median(client_scores))
+    pooled_median = float(np.median(pooled_scores))
+    client_mad = robust_mad(client_scores)
+    pooled_mad = robust_mad(pooled_scores)
+    location_shift = abs(client_median - pooled_median) / pooled_mad
+    scale_shift = abs(np.log(client_mad / pooled_mad))
+    drift = location_shift + scale_shift
+    alpha = float(drift / (1.0 + drift))
+    blended = alpha * client_anchors + (1.0 - alpha) * pooled_anchors
+    return tuple(float(x) for x in blended)
+
+
 def evaluate_state(
     seed: int,
     clients_by: str,
@@ -304,6 +338,8 @@ def evaluate_state(
                 p50, p90, p95, p99 = client_anchors
             elif calibration_scope == "pooled":
                 p50, p90, p95, p99 = pooled_anchors
+            elif calibration_scope == "adaptive":
+                p50, p90, p95, p99 = adaptive_calibration_anchors(val_scores_by_client[client_id], pooled_val_scores)
             else:
                 raise ValueError(f"Unsupported calibration scope: {calibration_scope}")
 
@@ -395,6 +431,8 @@ def evaluate_client_states(
                 p50, p90, p95, p99 = client_anchors
             elif calibration_scope == "pooled":
                 p50, p90, p95, p99 = pooled_anchors
+            elif calibration_scope == "adaptive":
+                p50, p90, p95, p99 = adaptive_calibration_anchors(val_scores_by_client[client_id], pooled_val_scores)
             else:
                 raise ValueError(f"Unsupported calibration scope: {calibration_scope}")
 
@@ -714,7 +752,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--seeds", nargs="+", type=int, default=None)
     parser.add_argument("--evaluate-each-round", action="store_true")
-    parser.add_argument("--calibration-scopes", nargs="+", choices=["client_specific", "pooled"], default=["client_specific", "pooled"])
+    parser.add_argument("--calibration-scopes", nargs="+", choices=["client_specific", "pooled", "adaptive"], default=["client_specific", "pooled", "adaptive"])
     parser.add_argument("--federated-methods", nargs="+", choices=["fedavg", "fedprox", "fedbn"], default=["fedavg"])
     parser.add_argument("--fedprox-mu", type=float, default=0.01)
     parser.add_argument("--personalize-epochs", type=int, default=1)

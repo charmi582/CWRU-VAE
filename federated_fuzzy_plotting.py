@@ -75,11 +75,11 @@ def plot_calibration_scope(summary: pd.DataFrame) -> None:
         & summary["training_mode"].isin(["centralized", "fedavg", "fedprox", "fedbn"])
     ].copy()
     data["label"] = data["clients_by"] + " / " + data["training_mode"] + " / " + data["calibration_scope"]
-    fig, ax = plt.subplots(figsize=(10, 4.6))
+    fig, ax = plt.subplots(figsize=(12, 5.0))
     ax.bar(range(len(data)), data["miss_rate"], color="#c77855", label="Miss rate")
     ax.plot(range(len(data)), data["false_alarm_rate"], marker="o", color="#2f5f8f", label="False alarm rate")
     ax.set_xticks(range(len(data)))
-    ax.set_xticklabels(data["label"], rotation=45, ha="right")
+    ax.set_xticklabels(data["label"], rotation=55, ha="right", fontsize=8)
     ax.set_ylabel("Rate")
     ax.set_title("Client-specific versus pooled threshold calibration")
     ax.legend()

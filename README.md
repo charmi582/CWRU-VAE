@@ -680,7 +680,7 @@ python federated_fuzzy_experiment.py \
   --federated-methods fedavg fedprox fedbn \
   --fedprox-mu 0.01 \
   --personalize-epochs 1 \
-  --calibration-scopes client_specific pooled
+  --calibration-scopes client_specific pooled adaptive
 ```
 
 Estimate deployment communication cost and regenerate all federated figures:
@@ -716,6 +716,9 @@ Main finding:
   rate, and fuzzy health-gap variation.
 - Client-specific and pooled calibration are both reported because threshold
   anchors can shift under non-IID clients.
+- Adaptive calibration blends pooled and client-specific anchors according to
+  validation-score distribution drift, making calibration a deployment policy
+  rather than a fixed percentile choice.
 - FedAvg communication traffic is reported explicitly; raw vibration windows are
   not transmitted.
 - The fuzzy decision layer now supports both VAE and CNN-AE reconstruction

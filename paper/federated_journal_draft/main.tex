@@ -91,7 +91,21 @@ Only model parameters are transmitted. Raw vibration windows, validation scores,
 
 \subsection{Calibration and Fuzzy Health Index}
 
-Two calibration scopes are evaluated. In client-specific calibration, each client computes score anchors from its own validation-normal scores. In pooled calibration, validation-normal anchors are estimated from the union of validation scores across clients. For percentiles $p\in\{50,90,95,99\}$, the corresponding anchors are denoted as $q_p$.
+Three calibration scopes are evaluated. In client-specific calibration, each client computes score anchors from its own validation-normal scores. In pooled calibration, validation-normal anchors are estimated from the union of validation scores across clients. In adaptive calibration, the final anchors are a distribution-shift-aware blend of client-specific and pooled anchors. For percentiles $p\in\{50,90,95,99\}$, the corresponding client and pooled anchors are denoted as $q_{p,k}$ and $q_{p,g}$.
+
+The adaptive calibration weight is computed from the validation-normal score distribution. Let $m_k$ and $m_g$ be the client and pooled medians, and let $d_k$ and $d_g$ be their median absolute deviations. The drift score is
+\[
+\Delta_k=\frac{|m_k-m_g|}{d_g+\epsilon}+\left|\log\frac{d_k+\epsilon}{d_g+\epsilon}\right|,
+\]
+and the adaptive blending weight is
+\[
+\alpha_k=\frac{\Delta_k}{1+\Delta_k}.
+\]
+The adaptive anchor for percentile $p$ is then
+\[
+q_{p,k}^{adapt}=\alpha_k q_{p,k}+(1-\alpha_k)q_{p,g}.
+\]
+This policy remains close to pooled calibration when the client resembles the global validation distribution, but moves toward client-specific calibration under stronger non-IID score drift.
 
 The fuzzy health-index layer maps anomaly scores to a continuous health index using percentile anchors. Low scores are interpreted as normal, intermediate scores as warning or uncertain, and high scores as fault-like. This produces both binary decisions and interpretable deployment quantities:
 
@@ -126,7 +140,7 @@ Table~\ref{tab:main_results} summarizes the current formal CNN-AE results under 
 
 \input{tables/tab_federated_summary}
 
-The main observation is that plain FedAvg does not automatically outperform local-only or centralized training. Under bearing-wise clients, FedAvg improves over local-only but remains below the centralized reference. FedBN improves the federated operating point, and FedBN-personalized provides the best current F1 under bearing-wise clients. Under condition-wise clients, personalized federated variants substantially improve over plain FedAvg and become comparable to the centralized reference. These results support a careful interpretation: federated learning enables privacy-preserving collaborative monitoring, but non-IID adaptation and client-aware calibration are necessary for practical deployment.
+The main observation is that plain FedAvg does not automatically outperform local-only or centralized training. Under bearing-wise clients, FedAvg improves over local-only but remains below the centralized reference. FedBN improves the federated operating point, and FedBN-personalized provides the best current F1 under bearing-wise clients. Under condition-wise clients, personalized federated variants substantially improve over plain FedAvg and become comparable to the centralized reference. Adaptive calibration does not always maximize F1, but it reduces client-to-client instability in several settings by avoiding the extremes of fully pooled or fully client-specific threshold anchors. These results support a careful interpretation: federated learning enables privacy-preserving collaborative monitoring, but non-IID adaptation and client-aware calibration are necessary for practical deployment.
 
 Calibration scope has a visible effect. Pooled calibration often lowers false alarm rate but increases miss rate, especially under non-IID client partitions. This indicates that a shared threshold anchor may be too conservative for some clients. Therefore, client-specific calibration should be considered a necessary deployment component rather than an optional tuning detail.
 
