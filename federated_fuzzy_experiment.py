@@ -5,7 +5,11 @@ comparison:
 
 - local-only: each client trains its own normal-only model.
 - centralized: a single model trains on pooled normal windows.
-- federated: clients train locally and share only model weights for FedAvg.
+- fedavg: clients train locally and share only model weights for FedAvg.
+- fedprox: clients use a proximal penalty during local training to reduce
+  non-IID client drift.
+- personalized variants: the federated global model is locally adapted on each
+  client's normal windows before evaluation.
 
 All modes are evaluated with the same fuzzy health-index decision layer. Fault
 windows are used only for audit evaluation and never for training.
@@ -117,9 +121,14 @@ def train_model_from_state(
     X_val: np.ndarray,
     epochs: int,
     device: torch.device,
+    prox_state: dict[str, torch.Tensor] | None = None,
+    prox_mu: float = 0.0,
 ) -> tuple[dict[str, torch.Tensor], float]:
     model = model_factory(model_name, input_size)().to(device)
     model.load_state_dict(initial_state)
+    prox_state_device = None
+    if prox_state is not None and prox_mu > 0:
+        prox_state_device = {k: v.detach().to(device) for k, v in prox_state.items()}
     optimiser = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
     train_loader = DataLoader(
         TensorDataset(torch.FloatTensor(X_train).unsqueeze(1)),
@@ -133,10 +142,41 @@ def train_model_from_state(
     )
     val_loss = float("nan")
     for _ in range(epochs):
-        _train_epoch(model, train_loader, optimiser, device)
+        if prox_state_device is None:
+            _train_epoch(model, train_loader, optimiser, device)
+        else:
+            train_epoch_fedprox(model, train_loader, optimiser, device, prox_state_device, prox_mu)
         val_loss, _, _ = _eval_epoch(model, val_loader, device)
     state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     return state, float(val_loss)
+
+
+def train_epoch_fedprox(
+    model,
+    loader,
+    optimiser,
+    device: torch.device,
+    prox_state: dict[str, torch.Tensor],
+    prox_mu: float,
+) -> float:
+    model.train()
+    total = 0.0
+    named_params = dict(model.named_parameters())
+    for (bx,) in loader:
+        bx = bx.to(device)
+        optimiser.zero_grad()
+        x_hat, mu, logvar = model(bx)
+        loss, _, _ = model.loss_function(bx, x_hat, mu, logvar)
+        prox = torch.zeros((), device=device)
+        for name, param in named_params.items():
+            if name in prox_state:
+                prox = prox + torch.sum((param - prox_state[name]) ** 2)
+        loss = loss + 0.5 * prox_mu * prox
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimiser.step()
+        total += loss.item()
+    return total / max(1, len(loader))
 
 
 def fedavg(states: list[dict[str, torch.Tensor]], weights: list[int]) -> dict[str, torch.Tensor]:
@@ -281,6 +321,9 @@ def run_model(
     device: torch.device,
     evaluate_each_round: bool = False,
     calibration_scopes: tuple[str, ...] = ("client_specific", "pooled"),
+    federated_methods: tuple[str, ...] = ("fedavg",),
+    fedprox_mu: float = 0.01,
+    personalize_epochs: int = 1,
 ) -> list[FederatedFuzzyRow]:
     torch.manual_seed(seed)
     base_model = model_factory(model_name, input_size)().to(device)
@@ -321,34 +364,66 @@ def run_model(
         evaluate_state(seed, clients_by, "centralized", centralized_epochs, model_name, input_size, central_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
     )
 
-    print(f"[{model_name}] federated")
-    global_state = copy.deepcopy(initial_state)
-    for round_i in range(1, rounds + 1):
-        local_states = []
-        weights = []
-        print(f"  round={round_i}/{rounds}")
-        for client_id, split in clients.items():
-            print(f"    client={client_id}")
-            state, _ = train_model_from_state(
-                global_state,
-                model_name,
-                input_size,
-                X[split["train"]],
-                X[split["val"]],
-                epochs=local_epochs,
-                device=device,
-            )
-            local_states.append(state)
-            weights.append(len(split["train"]))
-        global_state = fedavg(local_states, weights)
-        if evaluate_each_round:
+    for method in federated_methods:
+        print(f"[{model_name}] {method}")
+        global_state = copy.deepcopy(initial_state)
+        for round_i in range(1, rounds + 1):
+            local_states = []
+            weights = []
+            print(f"  round={round_i}/{rounds}")
+            for client_id, split in clients.items():
+                print(f"    client={client_id}")
+                state, _ = train_model_from_state(
+                    copy.deepcopy(global_state),
+                    model_name,
+                    input_size,
+                    X[split["train"]],
+                    X[split["val"]],
+                    epochs=local_epochs,
+                    device=device,
+                    prox_state=global_state if method == "fedprox" else None,
+                    prox_mu=fedprox_mu if method == "fedprox" else 0.0,
+                )
+                local_states.append(state)
+                weights.append(len(split["train"]))
+            global_state = fedavg(local_states, weights)
+            if evaluate_each_round:
+                rows.extend(
+                    evaluate_state(seed, clients_by, method, round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                )
+        if not evaluate_each_round:
             rows.extend(
-                evaluate_state(seed, clients_by, "federated", round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                evaluate_state(seed, clients_by, method, rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
             )
-    if not evaluate_each_round:
-        rows.extend(
-            evaluate_state(seed, clients_by, "federated", rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
-        )
+        if personalize_epochs > 0:
+            for client_id, split in clients.items():
+                personalized_state, _ = train_model_from_state(
+                    copy.deepcopy(global_state),
+                    model_name,
+                    input_size,
+                    X[split["train"]],
+                    X[split["val"]],
+                    epochs=personalize_epochs,
+                    device=device,
+                )
+                one_client = {client_id: split}
+                rows.extend(
+                    evaluate_state(
+                        seed,
+                        clients_by,
+                        f"{method}-personalized",
+                        rounds,
+                        model_name,
+                        input_size,
+                        personalized_state,
+                        X,
+                        y,
+                        one_client,
+                        fault_idx,
+                        device,
+                        calibration_scopes=("client_specific",),
+                    )
+                )
     return rows
 
 
@@ -417,9 +492,29 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
     summary.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_summary.csv"), index=False)
     stability.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_stability.csv"), index=False)
     client.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_detail.csv"), index=False)
+    formal = summary[
+        summary["model"].eq("cnn-ae")
+        & summary["decision_policy"].eq("fuzzy_warning_as_alarm_hi50")
+    ][
+        [
+            "clients_by",
+            "training_mode",
+            "calibration_scope",
+            "roc_auc",
+            "pr_auc",
+            "f1",
+            "false_alarm_rate",
+            "miss_rate",
+            "uncertain_rate",
+            "health_gap",
+        ]
+    ].copy()
+    for col in ["roc_auc", "pr_auc", "f1", "false_alarm_rate", "miss_rate", "uncertain_rate", "health_gap"]:
+        formal[col] = formal[col].round(4)
+    formal.to_csv(os.path.join(OUT_DIR, "federated_formal_cnn_ae_hard_p95_summary.csv"), index=False)
     convergence = (
-        df[df["training_mode"].eq("federated")]
-        .groupby(["clients_by", "calibration_scope", "model", "decision_policy", "round"])[metric_cols]
+        df[df["training_mode"].isin(["fedavg", "fedprox"])]
+        .groupby(["clients_by", "training_mode", "calibration_scope", "model", "decision_policy", "round"])[metric_cols]
         .mean()
         .reset_index()
     )
@@ -427,7 +522,7 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
 
     lines = [
         "# Federated Fuzzy Health-Index Comparison\n\n",
-        "This experiment compares local-only, centralized, and FedAvg training under the same fuzzy health-index decision layer. Fault windows are audit-only and are not used during training.\n\n",
+        "This experiment compares local-only, centralized, FedAvg, FedProx, and personalized federated training under the same fuzzy health-index decision layer. Fault windows are audit-only and are not used during training.\n\n",
         "## Mean Performance\n\n",
         md_table(summary),
         "\n\n## Client Stability\n\n",
@@ -437,7 +532,9 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         "\n\n## Interpretation\n\n",
         "- `local-only` shows how each private site performs without collaboration.\n",
         "- `centralized` is the upper-reference setting that pools normal data and would require data sharing.\n",
-        "- `federated` approximates collaborative normal-only training without sharing raw vibration windows.\n",
+        "- `fedavg` approximates collaborative normal-only training without sharing raw vibration windows.\n",
+        "- `fedprox` adds a proximal penalty to reduce local client drift under non-IID data.\n",
+        "- `*-personalized` locally adapts the federated global model before client evaluation.\n",
         "- Client stability is evaluated through the standard deviation of false alarm rate, miss rate, uncertain rate, and fuzzy health gap across clients.\n",
         "- The fuzzy layer is model-agnostic here because it is applied to both VAE and CNN-AE reconstruction scores.\n",
     ]
@@ -464,6 +561,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", nargs="+", type=int, default=None)
     parser.add_argument("--evaluate-each-round", action="store_true")
     parser.add_argument("--calibration-scopes", nargs="+", choices=["client_specific", "pooled"], default=["client_specific", "pooled"])
+    parser.add_argument("--federated-methods", nargs="+", choices=["fedavg", "fedprox"], default=["fedavg"])
+    parser.add_argument("--fedprox-mu", type=float, default=0.01)
+    parser.add_argument("--personalize-epochs", type=int, default=1)
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
     return parser.parse_args()
 
@@ -508,6 +608,9 @@ def main() -> None:
                         device=device,
                         evaluate_each_round=args.evaluate_each_round,
                         calibration_scopes=tuple(args.calibration_scopes),
+                        federated_methods=tuple(args.federated_methods),
+                        fedprox_mu=args.fedprox_mu,
+                        personalize_epochs=args.personalize_epochs,
                     )
                 )
 

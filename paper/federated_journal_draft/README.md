@@ -7,7 +7,7 @@ This folder contains the first content-oriented draft for the federated-learning
 Privacy-preserving normal-only bearing health monitoring using:
 
 - federated reconstruction models,
-- local-only / centralized / federated comparison,
+- local-only / centralized / FedAvg / FedProx / personalized comparison,
 - client-specific and pooled threshold calibration,
 - fuzzy health-index decisions,
 - client stability analysis,
@@ -39,6 +39,6 @@ Recommended placement:
 
 1. Replace the generic related-work paragraphs with cited literature from 2021-2026.
 2. Add the figure environments after the target journal format is chosen.
-3. Decide whether VAE remains supplementary or should be removed from the main paper.
+3. Decide whether FedBN should be added as a BatchNorm-specific federated baseline.
 4. Add a stronger threat-to-validity subsection for simulated clients.
 5. Clarify that this paper addresses privacy-preserving anomaly monitoring, not exact remaining useful life prediction.

@@ -37,13 +37,13 @@ Despite rapid progress, many published bearing diagnosis studies rely on assumpt
 
 Federated learning offers a natural way to study this problem because clients can train locally and share model updates rather than raw data. However, for industrial health monitoring, the value of federated learning should not be reduced to whether it improves accuracy over a centralized model. A centralized model is usually an upper-reference setting that assumes unrestricted data sharing. The more relevant question is whether federated training can provide a useful privacy-preserving operating point compared with local-only training, and whether the resulting detector remains stable across heterogeneous clients.
 
-This paper focuses on privacy-preserving normal-only bearing health monitoring. We simulate multiple clients from the Paderborn bearing dataset using bearing-wise and condition-wise partitions. Each client trains only on normal vibration windows. Fault windows are used only for audit evaluation. We compare local-only, centralized, and federated FedAvg training, use CNN autoencoders as the main reconstruction model, and add a fuzzy health-index layer to convert anomaly scores into graded health decisions. We further compare client-specific and pooled threshold calibration to test whether decision thresholds remain stable under non-IID clients.
+This paper focuses on privacy-preserving normal-only bearing health monitoring. We simulate multiple clients from the Paderborn bearing dataset using bearing-wise and condition-wise partitions. Each client trains only on normal vibration windows. Fault windows are used only for audit evaluation. We compare local-only, centralized, FedAvg, FedProx, and personalized federated training, use CNN autoencoders as the main reconstruction model, and add a fuzzy health-index layer to convert anomaly scores into graded health decisions. We further compare client-specific and pooled threshold calibration to test whether decision thresholds remain stable under non-IID clients.
 
 The main contributions are as follows:
 
 \begin{itemize}
     \item We formulate a privacy-preserving normal-only bearing monitoring problem in which raw vibration data remain local and only model parameters are exchanged.
-    \item We provide a deployment-oriented comparison among local-only, centralized, and federated FedAvg training under bearing-wise and condition-wise client partitions.
+    \item We provide a deployment-oriented comparison among local-only, centralized, FedAvg, FedProx, and personalized federated training under bearing-wise and condition-wise client partitions.
     \item We evaluate threshold calibration as a core part of federated deployment, comparing client-specific and pooled validation anchors.
     \item We connect reconstruction scores to a fuzzy health-index layer and report client-level false alarm, miss rate, uncertain rate, and health-index drift.
     \item We release a reproducible experiment package including metrics, client-stability summaries, convergence curves, communication-cost estimates, and figure-generation scripts.
@@ -87,7 +87,7 @@ In the federated setting, each client receives the current global model paramete
 \[
 \theta_{t+1}=\sum_{k=1}^{K}\frac{n_k}{\sum_j n_j}\theta_t^{(k)}.
 \]
-Only model parameters are transmitted. Raw vibration windows, validation scores, and local test windows remain at the client side unless explicitly used for aggregate reporting in the experiment.
+Only model parameters are transmitted. Raw vibration windows, validation scores, and local test windows remain at the client side unless explicitly used for aggregate reporting in the experiment. In addition to FedAvg, we evaluate FedProx, which adds a proximal regularization term during local optimization to reduce client drift under non-IID data. We also evaluate a personalized variant in which the federated global model is adapted locally for one additional epoch before client-side evaluation.
 
 \subsection{Calibration and Fuzzy Health Index}
 
@@ -112,10 +112,12 @@ Three training modes are compared:
 \begin{itemize}
     \item \textbf{Local-only}: each client trains its own normal-only detector without collaboration.
     \item \textbf{Centralized}: normal windows from all clients are pooled into a single reference training set.
-    \item \textbf{Federated}: clients train locally and share only model weights through FedAvg.
+    \item \textbf{FedAvg}: clients train locally and share only model weights through weighted parameter averaging.
+    \item \textbf{FedProx}: clients train locally with a proximal penalty that discourages excessive drift from the current global model.
+    \item \textbf{Personalized federated}: a FedAvg or FedProx global model is locally adapted before client evaluation.
 \end{itemize}
 
-The main model is a CNN-based autoencoder. FedAvg is run for 10 rounds with two local epochs per round. The centralized reference is trained for 20 epochs. All formal experiments are repeated with seeds 42, 202, and 777. Fault windows are reserved for audit evaluation and are never used during training.
+The main model is a CNN-based autoencoder. FedAvg and FedProx are run for 10 rounds with two local epochs per round. Personalized variants use one additional local epoch before evaluation. The centralized reference is trained for 20 epochs. All formal experiments are repeated with seeds 42, 202, and 777. Fault windows are reserved for audit evaluation and are never used during training.
 
 \section{Results}
 
@@ -123,7 +125,7 @@ Table~\ref{tab:main_results} summarizes the current formal CNN-AE results under 
 
 \input{tables/tab_federated_summary}
 
-The main observation is that FedAvg does not automatically outperform local-only or centralized training. Under bearing-wise clients, centralized training with client-specific calibration obtains the highest F1 among the listed settings, while federated training remains below the centralized reference. Under condition-wise clients, FedAvg provides a comparable but still modest operating point. These results support a careful interpretation: federated learning enables privacy-preserving collaborative monitoring, but it does not remove the need for client-level calibration and stability analysis.
+The main observation is that plain FedAvg does not automatically outperform local-only or centralized training. Under bearing-wise clients, FedAvg improves over local-only but remains below the centralized reference. FedProx alone is not consistently better than FedAvg, but the personalized FedProx variant provides the best current F1 operating point under bearing-wise clients. Under condition-wise clients, FedProx-personalized reaches a performance level comparable to the centralized reference. These results support a careful interpretation: federated learning enables privacy-preserving collaborative monitoring, but non-IID adaptation and client-aware calibration are necessary for practical deployment.
 
 Calibration scope has a visible effect. Pooled calibration often lowers false alarm rate but increases miss rate, especially under non-IID client partitions. This indicates that a shared threshold anchor may be too conservative for some clients. Therefore, client-specific calibration should be considered a necessary deployment component rather than an optional tuning detail.
 

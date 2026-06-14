@@ -677,6 +677,9 @@ python federated_fuzzy_experiment.py \
   --max-files-per-condition 1 \
   --seeds 42 202 777 \
   --evaluate-each-round \
+  --federated-methods fedavg fedprox \
+  --fedprox-mu 0.01 \
+  --personalize-epochs 1 \
   --calibration-scopes client_specific pooled
 ```
 
@@ -704,6 +707,8 @@ Main finding:
 
 - FedAvg is a privacy-preserving deployment option, but it should not be
   claimed as an automatic accuracy improvement.
+- FedProx and personalized local adaptation are included to test whether
+  non-IID client drift can be reduced after federated training.
 - Local-only, centralized, and federated results must be reported together.
 - Client stability is evaluated with false alarm rate, miss rate, uncertain
   rate, and fuzzy health-gap variation.
