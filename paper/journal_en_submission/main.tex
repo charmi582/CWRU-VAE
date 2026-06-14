@@ -1,26 +1,29 @@
-\documentclass[11pt,a4paper]{article}
 
-\usepackage[margin=1in]{geometry}
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
 \usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
+\usepackage{mathrsfs}
+\usepackage[title]{appendix}
+\usepackage{xcolor}
+\usepackage{textcomp}
+\usepackage{manyfoot}
 \usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{listings}
 \usepackage{tabularx}
 \usepackage{array}
-\usepackage{multirow}
-\usepackage{amsmath,amssymb}
+\usepackage{makecell}
 \usepackage{float}
 \usepackage{placeins}
-\usepackage{xcolor}
 \usepackage{url}
-\usepackage{hyperref}
-\usepackage[numbers,sort&compress]{natbib}
+\usepackage{microtype}
 
 \graphicspath{{figures/}}
-\hypersetup{
-  colorlinks=true,
-  linkcolor=blue!50!black,
-  citecolor=blue!50!black,
-  urlcolor=blue!50!black
-}
 
 \newcommand{\rocauc}{AUC-ROC}
 \newcommand{\prauc}{AUC-PR}
@@ -28,25 +31,23 @@
 \newcommand{\miss}{Miss}
 \newcommand{\hi}{HI}
 
-\title{A Calibration-Aware Fuzzy Health Index for Normal-Only Bearing Anomaly Detection: Strict Generalization Validation and External Paderborn Evaluation}
-
-\author{
-Anonymous Author(s)\\
-Department of Artificial Intelligence Application Engineering\\
-Anonymous Institution\\
-\texttt{anonymous@example.com}
-}
-
-\date{}
+\raggedbottom
 
 \begin{document}
+
+\title[A calibration-aware fuzzy health index for bearing anomaly detection]{A Calibration-Aware Fuzzy Health Index for Normal-Only Bearing Anomaly Detection: Strict Generalization Validation and External Paderborn Evaluation}
+
+\author[1]{\fnm{Chia-Hsuan} \sur{Chang}}\email{s3B341027@gm.student.ncut.edu.tw}
+\author[1]{\fnm{Chun-Lung} \sur{Chang}}\email{VincentChang0304@ncut.edu.tw}
+\author*[1]{\fnm{Chuan-Kang} \sur{Liu}}\email{ckliu@ncut.edu.tw}
+
+\affil[1]{\orgdiv{Department of Artificial Intelligence Application Engineering}, \orgname{Anonymous Institution}, \orgaddress{\country{Taiwan}}}
+
+\abstract{Public bearing benchmarks have enabled rapid progress in data-driven condition monitoring, yet many results remain difficult to translate into deployable anomaly detection systems. A common reason is that experiments are often evaluated with window-level random splits, balanced fault distributions and ranking metrics such as \rocauc. Such settings can overstate practical performance when adjacent sliding windows or identical operating conditions appear in both training and testing. This paper presents a reproducible normal-only bearing anomaly detection workflow that treats threshold calibration and health-state interpretation as core components. The pipeline trains only on normal vibration windows, evaluates VAE, CNN-AE, LSTM-AE and Isolation Forest models under strict CWRU protocols, extends validation to the Paderborn bearing dataset, and converts calibrated anomaly scores into a fuzzy health index. On CWRU, reconstruction models retain high ranking performance under load-wise, fault-size-wise and file-wise splits, but false alarm behavior depends strongly on the threshold policy. On Paderborn, ranking remains informative while thresholded decisions become substantially harder, especially under conservative percentile or robust MAD thresholds. The results show that deployable bearing anomaly detection should report not only ranking metrics, but also calibration transfer, false alarm rate, miss rate, uncertainty rate, inference latency and model footprint. The main contribution is therefore a calibration-aware, reproducible and interpretable workflow for normal-only industrial health monitoring rather than another high-accuracy CWRU classifier.}
+
+\keywords{bearing vibration; anomaly detection; normal-only learning; threshold calibration; fuzzy health index; condition monitoring}
+
 \maketitle
-
-\begin{abstract}
-Public bearing benchmarks have enabled rapid progress in data-driven condition monitoring, yet many reported results remain difficult to translate into deployable anomaly detection systems. A common reason is that experiments are often evaluated under window-level random splits, balanced fault distributions, and model-centric metrics such as \rocauc. These settings can overstate practical performance when sliding windows from the same file, operating load, or bearing condition appear in both training and testing. This paper presents a reproducible normal-only bearing anomaly detection workflow that treats threshold calibration and health-state interpretation as first-class components rather than post-processing details. The proposed pipeline trains only on normal vibration windows, evaluates VAE, CNN-AE, LSTM-AE and Isolation Forest models under strict CWRU protocols, extends validation to the Paderborn bearing dataset, and converts calibrated anomaly scores into a fuzzy health index with normal, warning, fault and uncertain regions. On CWRU, neural reconstruction models retain high ranking performance under load-wise, fault-size-wise and file-wise splits, but false alarm behavior depends strongly on the threshold policy. On Paderborn, the same framework exposes a more realistic external-domain challenge: ranking quality remains informative, whereas thresholded decisions become substantially harder, especially when conservative percentile or robust MAD thresholds are used. These results show that deployment-oriented bearing anomaly detection should report not only ranking metrics, but also calibration transfer, false alarm rate, miss rate, uncertainty rate, inference latency and model footprint. The main contribution is therefore not another high-accuracy CWRU classifier, but a calibration-aware, reproducible and interpretable workflow for normal-only industrial health monitoring research.
-\end{abstract}
-
-\noindent\textbf{Keywords:} bearing anomaly detection; normal-only training; threshold calibration; fuzzy health index; variational autoencoder; Paderborn bearing dataset; CWRU; reproducible condition monitoring.
 
 \section{Introduction}
 
@@ -59,6 +60,17 @@ Normal-only anomaly detection changes the scientific question. The question is n
 This paper responds to that gap by repositioning the study around calibration-aware anomaly detection. Instead of presenting a VAE pipeline only as a model-performance result, we develop a reproducible workflow that evaluates the complete path from data preparation to health-state decision. The workflow begins with normal-only training, applies strict generalization protocols to reduce sliding-window leakage, evaluates both neural and classical anomaly models, studies dataset-specific threshold policies, and maps calibrated anomaly scores into a fuzzy health index. The fuzzy layer is not intended to replace the anomaly score. Rather, it provides a structured way to express normal, warning, fault and uncertain regions, which is more aligned with industrial decision support than a single binary threshold.
 
 Before introducing the technical details, it is useful to state what this work deliberately does not claim. We do not claim a new state-of-the-art bearing classifier. We also do not claim that CWRU alone is sufficient evidence of industrial generalization. The objective is more modest and, we argue, more useful: to show how the evaluation of normal-only bearing anomaly detection changes when strict splits, external validation, threshold calibration and fuzzy health interpretation are considered together.
+
+The reproducible VAE-based bearing anomaly detection pipeline reported by Chang et al. \citep{tcse2026conference} provides useful context for the calibration-aware normal-only monitoring problem studied here.
+
+Figure~\ref{fig:study_scope} summarizes the scope of the present study. The figure is intentionally placed before the contribution list because the central argument is not a single model block, but the connection between normal-only anomaly scoring, stricter validation, threshold behavior and interpretable health decisions.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.94\textwidth]{fig00_study_scope.png}
+  \caption{Scope of the proposed calibration-aware normal-only bearing anomaly detection study.}
+  \label{fig:study_scope}
+\end{figure*}
 
 The contributions of this paper are summarized as follows:
 \begin{itemize}
@@ -138,8 +150,8 @@ After defining the task, the next question is how the full pipeline is organized
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{fig01_research_pipeline.png}
-  \caption{Proposed calibration-aware normal-only bearing anomaly detection workflow. The redesigned pipeline emphasizes strict generalization protocols, threshold calibration and fuzzy health-state interpretation rather than only model accuracy.}
+  \includegraphics[width=0.96\textwidth]{fig01_research_pipeline.png}
+  \caption{Two-layer view of the proposed calibration-aware normal-only bearing anomaly detection workflow. The upper layer defines the evaluation setting, while the lower layer separates AI anomaly scoring, threshold calibration, fuzzy health decision and deployment reporting.}
   \label{fig:pipeline}
 \end{figure*}
 
@@ -349,26 +361,34 @@ The fuzzy layer is also model-agnostic. Although the current figures emphasize I
 
 Several limitations remain. First, the study uses public datasets rather than private plant data. Public datasets are necessary for reproducibility, but they cannot fully capture sensor aging, installation variation, maintenance logs or operator interventions. Second, the Paderborn experiments improve external validation but do not exhaust all possible fault modes or operating regimes. Third, the fuzzy membership functions are calibrated from score anchors rather than optimized from plant-specific cost functions. Fourth, the present paper does not include federated learning. Privacy-preserving multi-plant learning is an important future direction, but including it here would dilute the main contribution and require a separate experimental design.
 
-\subsection{Implications for journal submission}
+\subsection{Implications for condition-monitoring research}
 
-For journal submission, the strongest positioning is not model novelty. The strongest positioning is evaluation maturity. The paper provides a reproducible workflow that converts a clean CWRU-centered conference study into a more rigorous journal study by adding strict splits, external Paderborn validation, threshold calibration, fuzzy health interpretation and deployment metrics. This is a credible contribution for journals interested in applied artificial intelligence, mechanical condition monitoring and intelligent maintenance, provided that the manuscript is framed as a workflow and evaluation study rather than a state-of-the-art architecture paper.
+The strongest positioning of this study is not model novelty, but evaluation maturity. The paper provides a reproducible workflow that connects strict splits, external Paderborn validation, threshold calibration, fuzzy health interpretation and deployment metrics. This is a credible contribution for studies at the intersection of applied artificial intelligence, mechanical condition monitoring and intelligent maintenance, provided that the work is framed as a calibration-aware workflow and evaluation study rather than a state-of-the-art architecture paper.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper presented a calibration-aware fuzzy health-index workflow for normal-only bearing anomaly detection. The study began from a VAE-based CWRU anomaly detection pipeline but expanded the evaluation to include strict CWRU protocols, an external Paderborn dataset, multiple baselines, threshold calibration policies and fuzzy health-state decisions. The results show that CWRU can remain highly separable under stricter splits, but thresholded behavior still depends on calibration. Paderborn external validation is substantially harder and exposes the practical importance of false alarm, miss rate and uncertainty reporting. The fuzzy health index provides an interpretable decision layer that makes warning and ambiguous regions visible.
+This paper presented a calibration-aware fuzzy health-index workflow for normal-only bearing anomaly detection. The evaluation includes strict CWRU protocols, an external Paderborn dataset, multiple baselines, threshold calibration policies and fuzzy health-state decisions. The results show that CWRU can remain highly separable under stricter splits, but thresholded behavior still depends on calibration. Paderborn external validation is substantially harder and exposes the practical importance of false alarm, miss rate and uncertainty reporting. The fuzzy health index provides an interpretable decision layer that makes warning and ambiguous regions visible.
 
 The main lesson is that deployable bearing anomaly detection cannot be judged by \rocauc\ alone. A useful study should report how scores are calibrated, how thresholds transfer, how decisions behave under external conditions and how the system can be reproduced. Future work will extend the workflow to privacy-preserving federated learning and plant-specific adaptive calibration while keeping normal-only training as the central industrial assumption.
 
-\section*{Data and Code Availability}
+\section*{Funding}
+
+The authors received no specific funding for this work.
+
+\section*{Author Contributions}
+
+Chia-Hsuan Chang contributed to conceptualization, implementation, experiments, analysis and manuscript drafting. Chun-Lung Chang contributed to supervision, methodology discussion and manuscript review. Chuan-Kang Liu contributed to supervision, research design, validation and manuscript review.
+
+\section*{Data Availability}
 
 The experimental workflow, generated CSV summaries, figures and LaTeX tables are organized to support reproducible execution. Public datasets should be downloaded from the original CWRU and Paderborn sources according to their respective usage terms.
 
-\section*{Conflict of Interest}
+\section*{Competing Interests}
 
-The authors declare no conflict of interest.
+The authors declare no competing interests.
 
-\bibliographystyle{unsrtnat}
+\bibliographystyle{sn-mathphys-num}
 \bibliography{references}
 
 \end{document}

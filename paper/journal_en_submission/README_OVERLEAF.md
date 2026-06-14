@@ -1,11 +1,11 @@
 # Overleaf build notes
 
-This folder is a clean English journal manuscript draft.
+This folder is a Springer Nature `sn-jnl` English journal manuscript draft.
 
 Recommended compiler:
 
-- pdfLaTeX is sufficient because the manuscript is English-only.
-- XeLaTeX also works, but it is not required.
+- pdfLaTeX.
+- The main document class is `sn-jnl`.
 
 Main file:
 
@@ -20,7 +20,6 @@ The figures and tables are generated from the experiment CSV summaries in the re
 
 Before submission:
 
-- Replace anonymous author information.
+- Replace `Anonymous Institution` with the final institution name if required.
 - Verify all incomplete bibliographic entries in `references.bib`.
-- Convert to the target journal template after the text and figure order are stable.
 - Recheck every numerical claim against the generated CSV files.

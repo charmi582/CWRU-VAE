@@ -1,9 +1,13 @@
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Reproducibility checklist for the released experimental pipeline.}
 \label{tab:reproducibility}
 \small
-\begin{tabular}{lll}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.12}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.4cm}
+>{\raggedright\arraybackslash}p{5.0cm}
+>{\raggedright\arraybackslash}X}
 \toprule
 Component & Released element & Purpose \\
 \midrule
@@ -13,5 +17,5 @@ Models & VAE, CNN-AE, LSTM-AE and Isolation Forest implementations & Supports ne
 Calibration & Percentile and MAD threshold policies & Separates ranking quality from deployable alarm behavior \\
 Outputs & CSV metrics, figures and LaTeX tables & Makes numerical claims traceable to generated artifacts \\
 \bottomrule
-\end{tabular}
-\end{table}
+\end{tabularx}
+\end{table*}

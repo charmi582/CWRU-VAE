@@ -1,14 +1,19 @@
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Datasets and strict generalization protocols used in the study.}
 \label{tab:dataset_protocols}
 \small
-\begin{tabular}{lllll}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.12}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.0cm}
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}p{3.0cm}
+>{\raggedright\arraybackslash}p{4.0cm}}
 \toprule
-Dataset & Signal source & Training assumption & Strict protocols & Main role \\
+Dataset & Signal source & Training assumption & Strict protocols \\
 \midrule
-CWRU & Drive-end vibration & Normal windows only & load-wise, fault-size-wise, file-wise & Controlled benchmark for protocol stress testing \\
-Paderborn & Vibration data from multiple bearings and conditions & Normal windows only & condition-wise, bearing-wise, file-wise & External validation under stronger operating and bearing variation \\
+CWRU & Drive-end vibration & Normal windows only & load-wise, fault-size-wise, file-wise \\
+Paderborn & Vibration data from multiple bearings and conditions & Normal windows only & condition-wise, bearing-wise, file-wise \\
 \bottomrule
-\end{tabular}
-\end{table}
+\end{tabularx}
+\end{table*}

@@ -1,18 +1,22 @@
 
 \begin{table*}[t]
 \centering
-\caption{Positioning of the present work relative to recent bearing fault diagnosis studies. The table emphasizes evaluation assumptions rather than only model families.}
+\caption{Positioning of the present work relative to recent bearing fault diagnosis studies.}
 \label{tab:literature_positioning}
 \small
-\begin{tabularx}{\textwidth}{p{2.7cm}p{2.9cm}p{2.7cm}p{2.9cm}X}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}X}
 \toprule
-Study direction & Typical learning setting & Main emphasis & Common limitation for deployment & Relation to this work \\
+Study direction & Common emphasis and limitation & Position of this study \\
 \midrule
-Deep supervised diagnosis and CNN/Transformer models & Labeled fault classes & High classification accuracy under known classes & Requires fault labels and often uses condition-overlapping splits & We instead study normal-only anomaly detection and report strict generalization protocols. \\
-Autoencoder and VAE novelty detection & Mostly unsupervised or semi-supervised & Reconstruction error as anomaly score & Threshold selection and false alarm behavior are often secondary & We elevate calibration and health decision rules to primary contributions. \\
-Self-supervised bearing representation learning & Unlabeled pretraining with downstream evaluation & Transferable features and reduced label dependence & Often still evaluated as classification after feature learning & We keep the deployment task as binary abnormality screening with no fault labels in training. \\
-Domain adaptation/open-set diagnosis & Source-target adaptation, often with unlabeled target data & Robustness to load, speed, and dataset shift & Assumes access to target-domain adaptation data or source labels & We use stricter holdout protocols and compare calibration behavior across CWRU and Paderborn. \\
-Fuzzy health assessment & Rule-based or score-fusion health states & Interpretable condition categories & Frequently detached from modern anomaly scores & We connect fuzzy membership functions to calibrated VAE/CNN-AE/IForest anomaly scores. \\
+Deep supervised diagnosis and CNN/Transformer models & Emphasizes high classification accuracy under known fault classes, but usually requires labeled faults and can rely on condition-overlapping splits. & Studies normal-only anomaly detection and reports strict generalization protocols. \\
+Autoencoder and VAE novelty detection & Uses reconstruction error as an anomaly score, while threshold choice and alarm behavior are often treated as secondary details. & Treats calibration and health decision rules as primary workflow components. \\
+Self-supervised bearing representation learning & Learns transferable features from unlabeled signals, but is often evaluated as downstream classification. & Keeps the deployment task as abnormality screening without fault labels in training. \\
+Domain adaptation and open-set diagnosis & Targets load, speed and dataset shift, but may assume target-domain adaptation data or source labels. & Compares holdout protocols and calibration behavior across CWRU and Paderborn. \\
+Fuzzy health assessment & Provides interpretable condition categories, but is often separated from modern anomaly scores. & Connects fuzzy membership functions to calibrated anomaly scores. \\
 \bottomrule
 \end{tabularx}
 \end{table*}
