@@ -7,6 +7,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{url}
 \usepackage{microtype}
+\usepackage[numbers]{natbib}
 
 \title{Privacy-Preserving Normal-Only Bearing Health Monitoring Using Federated Reconstruction Models and Fuzzy Health Decisions}
 
@@ -51,11 +52,11 @@ The main contributions are as follows:
 
 \section{Related Work}
 
-Bearing fault diagnosis has been studied using signal processing, classical machine learning, and deep neural networks. Traditional methods often rely on hand-crafted time-domain, frequency-domain, or time-frequency features followed by classifiers such as support vector machines, random forests, or nearest-neighbor models. Deep learning methods, including convolutional neural networks, recurrent networks, transformers, and autoencoders, reduce the need for manual feature engineering and have achieved strong performance on public bearing datasets.
+Bearing fault diagnosis has been studied using signal processing, classical machine learning, and deep neural networks. Traditional methods often rely on hand-crafted time-domain, frequency-domain, or time-frequency features followed by classifiers such as support vector machines, random forests, or nearest-neighbor models. Deep learning methods, including convolutional neural networks, recurrent networks, transformers, and autoencoders, reduce the need for manual feature engineering and have achieved strong performance on public bearing datasets such as Paderborn, IMS, and FEMTO/PRONOSTIA \citep{lessmeier2016paderborn,lee2007ims,nectoux2012pronostia}.
 
 Recent work has also explored unsupervised and semi-supervised anomaly detection because industrial faults are rare and expensive to label. Autoencoders and variational autoencoders are common choices for normal-only learning: the model is trained to reconstruct healthy signals, and high reconstruction error is treated as anomalous. However, reconstruction-based monitoring depends heavily on threshold selection. A model may rank abnormal windows above normal windows while still producing unstable binary alarms when the threshold is transferred across loads, files, bearings, or datasets.
 
-Federated learning has received increasing attention in healthcare, manufacturing, Internet-of-Things, and predictive maintenance because it supports collaborative model training without centralizing raw data. FedAvg is the most widely used baseline: each client performs local optimization, and a server averages model parameters. For industrial monitoring, this privacy-preserving property is attractive, but non-IID client data can degrade convergence and make calibration difficult. Therefore, a federated bearing-monitoring study should evaluate not only mean accuracy, but also client-level stability, calibration shift, and deployment cost.
+Federated learning has received increasing attention in healthcare, manufacturing, Internet-of-Things, and predictive maintenance because it supports collaborative model training without centralizing raw data. FedAvg is the most widely used baseline: each client performs local optimization, and a server averages model parameters \citep{mcmahan2017fedavg}. For industrial monitoring, this privacy-preserving property is attractive, but non-IID client data can degrade convergence and make calibration difficult. FedProx addresses heterogeneous federated optimization by adding a proximal term to the local objective \citep{li2020fedprox}, while FedBN keeps BatchNorm statistics local to reduce feature-shift effects across clients \citep{li2021fedbn}. Recent federated fault-diagnosis studies further show the relevance of privacy-preserving distributed training for rotating machinery \citep{li2021modularflfault,survishno2023flbearing}. However, many such studies remain supervised and accuracy-centered. Therefore, a federated bearing-monitoring study should evaluate not only mean accuracy, but also client-level stability, calibration shift, and deployment cost.
 
 Fuzzy decision systems are relevant because industrial maintenance decisions are rarely binary. A score slightly above a threshold may require observation rather than immediate shutdown. Fuzzy membership functions can translate anomaly scores into interpretable health states such as normal, warning, fault, and uncertain regions. In this work, fuzzy health decisions are used as a model-agnostic layer on top of reconstruction scores, allowing the same decision logic to be compared across local-only, centralized, and federated settings.
 
@@ -161,5 +162,8 @@ This study is limited to public bearing data and simulated clients. Real factori
 \section{Conclusion}
 
 This paper presents a privacy-preserving federated framework for normal-only bearing health monitoring. By comparing local-only, centralized, and federated training under bearing-wise and condition-wise clients, the study shows that FedAvg should be evaluated as a deployment mechanism rather than an automatic accuracy improvement. The results highlight the importance of client-specific calibration, fuzzy health-index reporting, and client-stability analysis. The proposed framework provides a reproducible foundation for federated industrial health monitoring where raw vibration data cannot be centralized.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
 
 \end{document}

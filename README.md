@@ -726,3 +726,25 @@ Main finding:
 - In the formal 10-round Paderborn setting, CNN-AE is the main viable model.
   VAE remains supplementary because it is unstable under some non-IID
   federated client partitions.
+
+### IMS external validation track
+
+IMS Bearing is prepared as the next external validation dataset for the
+federated journal paper. The loader treats early run-to-failure files as normal
+training candidates and late files as audit fault windows.
+
+```bash
+python ims_external_validation.py
+```
+
+To download and summarize the NASA IMS archive:
+
+```bash
+python ims_external_validation.py --download --extract --summarize
+```
+
+Outputs:
+
+- `results/external/ims/ims_external_validation_readiness.md`
+- `results/external/ims/ims_window_summary.csv`
+- `results/external/ims/ims_window_summary.md`

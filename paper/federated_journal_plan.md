@@ -32,7 +32,8 @@ This paper studies whether bearing health monitoring can be deployed across mult
 
 ## Experimental Design
 
-- Dataset: Paderborn bearing dataset.
+- Main dataset: Paderborn bearing dataset.
+- External validation track: NASA IMS Bearing dataset.
 - Clients:
   - bearing-wise clients
   - condition-wise clients
@@ -66,6 +67,10 @@ This paper studies whether bearing health monitoring can be deployed across mult
 ## Current Result Interpretation
 
 Plain FedAvg does not dominate local-only or centralized training in F1. This should be presented as an honest deployment result rather than a weakness. In realistic industrial settings, the value of federated learning is not automatic accuracy gain, but privacy-preserving collaboration. The stronger result is that non-IID adaptation matters: FedBN-personalized currently gives the strongest bearing-wise operating point, while personalized FedAvg, FedProx, and FedBN all improve over plain FedAvg under condition-wise clients. Calibration and client stability also change substantially even when ranking metrics such as PR-AUC remain high. Client-specific calibration tends to give stronger F1, pooled calibration often reduces false alarms at the cost of more missed detections, and adaptive calibration can reduce client-to-client instability by blending both.
+
+## External Dataset Plan
+
+IMS Bearing is selected as the next validation dataset because it contains run-to-failure bearing experiments from the NASA Prognostics Data Repository. The first protocol treats early-life files as normal training candidates and late-life files as audit fault windows. Clients can be simulated by bearing channel or run-to-failure test. This adds a stronger external validation axis than Paderborn alone while staying aligned with the normal-only anomaly-monitoring objective.
 
 ## Figures Already Available
 
