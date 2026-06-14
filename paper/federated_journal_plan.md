@@ -72,6 +72,8 @@ Plain FedAvg does not dominate local-only or centralized training in F1. This sh
 
 IMS Bearing is selected as the next validation dataset because it contains run-to-failure bearing experiments from the NASA Prognostics Data Repository. The first protocol treats early-life files as normal training candidates and late-life files as audit fault windows. Clients can be simulated by bearing channel or run-to-failure test. This adds a stronger external validation axis than Paderborn alone while staying aligned with the normal-only anomaly-monitoring objective.
 
+The first IMS pilot is complete. The dataset loader produced 37,184 windows using 8192-point windows and 4096-point stride, with 18,592 normal windows and 18,592 fault-audit windows. The pilot uses bearing-wise and condition-wise clients, CNN-AE reconstruction, FedAvg, FedProx, FedBN, personalized variants, and client-specific, pooled, and adaptive calibration. Initial results show that IMS is much more difficult than CWRU-style strict splits: local-only remains strong, personalized federated variants approach local-only under bearing-wise clients, and pooled calibration often increases miss rate. The formal next step is a multi-seed IMS run with longer federated training.
+
 ## Figures Already Available
 
 - `fig_federated_architecture.png`: privacy-preserving deployment architecture

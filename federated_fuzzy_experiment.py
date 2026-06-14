@@ -35,6 +35,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from ae_model import ConvAE
 from config import BATCH_SIZE, BETA, LATENT_DIM, LEARNING_RATE
 from fuzzy_health_index_experiment import fuzzy_membership, md_table
+from ims_data_loader import IMS_EXTRACTED_DIR, load_ims_with_metadata
 from journal_experiment_utils import ensure_dir
 from paderborn_data_loader import PADERBORN_MAT_DIR, load_paderborn_with_metadata
 from preprocessor import normalize_per_sample
@@ -735,6 +736,8 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", choices=["paderborn", "ims"], default="paderborn")
+    parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--models", nargs="+", choices=["vae", "cnn-ae"], default=["cnn-ae", "vae"])
     parser.add_argument("--clients-by", choices=["bearing", "condition"], default="bearing")
     parser.add_argument("--client-partitions", nargs="+", choices=["bearing", "condition"], default=None)
@@ -757,21 +760,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fedprox-mu", type=float, default=0.01)
     parser.add_argument("--personalize-epochs", type=int, default=1)
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
+    parser.add_argument("--ims-extracted-dir", type=Path, default=IMS_EXTRACTED_DIR)
+    parser.add_argument("--ims-early-fraction", type=float, default=0.20)
+    parser.add_argument("--ims-late-fraction", type=float, default=0.20)
+    parser.add_argument("--ims-max-files-per-test", type=int, default=None)
     return parser.parse_args()
 
 
 def main() -> None:
+    global OUT_DIR
     args = parse_args()
+    if args.output_dir is not None:
+        OUT_DIR = str(args.output_dir)
+    elif args.dataset == "ims":
+        OUT_DIR = os.path.join("results", "federated_fuzzy_ims")
     ensure_dir(OUT_DIR)
-    X_raw, y, _, metadata = load_paderborn_with_metadata(
-        mat_dir=args.mat_dir,
-        bearings=tuple(args.bearings),
-        max_files_per_condition=args.max_files_per_condition,
-        window_size=args.window_size,
-        stride=args.stride,
-    )
+    if args.dataset == "paderborn":
+        X_raw, y, _, metadata = load_paderborn_with_metadata(
+            mat_dir=args.mat_dir,
+            bearings=tuple(args.bearings),
+            max_files_per_condition=args.max_files_per_condition,
+            window_size=args.window_size,
+            stride=args.stride,
+        )
+    else:
+        X_raw, y, _, metadata = load_ims_with_metadata(
+            extracted_dir=args.ims_extracted_dir,
+            window_size=args.window_size,
+            stride=args.stride,
+            early_fraction=args.ims_early_fraction,
+            late_fraction=args.ims_late_fraction,
+            max_files_per_test=args.ims_max_files_per_test,
+        )
     fault_idx = np.where(y == 1)[0]
     device = get_device()
+    print(f"Dataset: {args.dataset}")
     print(f"Using device: {device}")
     print(f"Fault audit windows: {len(fault_idx)}")
     X = normalize_per_sample(X_raw)

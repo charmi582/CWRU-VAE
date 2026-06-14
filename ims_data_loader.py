@@ -7,6 +7,8 @@ windows as fault audit windows, leaving the middle degradation region unused.
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -21,6 +23,20 @@ IMS_URL = "https://phm-datasets.s3.amazonaws.com/NASA/4.+Bearings.zip"
 IMS_ROOT = Path("results") / "external" / "ims"
 IMS_RAW_DIR = IMS_ROOT / "raw"
 IMS_EXTRACTED_DIR = IMS_ROOT / "extracted"
+
+
+def _find_7z_executable() -> str | None:
+    for candidate in ("7z", "7za", "7zr"):
+        exe = shutil.which(candidate)
+        if exe:
+            return exe
+    for candidate in (
+        Path("C:/Program Files/7-Zip/7z.exe"),
+        Path("C:/Program Files (x86)/7-Zip/7z.exe"),
+    ):
+        if candidate.exists():
+            return str(candidate)
+    return None
 
 
 def download_ims_archive(raw_dir: Path = IMS_RAW_DIR, overwrite: bool = False) -> Path:
@@ -46,11 +62,51 @@ def download_ims_archive(raw_dir: Path = IMS_RAW_DIR, overwrite: bool = False) -
 
 def extract_ims_archive(archive: Path, extracted_dir: Path = IMS_EXTRACTED_DIR) -> Path:
     extracted_dir.mkdir(parents=True, exist_ok=True)
-    if any(extracted_dir.rglob("*")):
+    if any(_numeric_files(extracted_dir)):
         return extracted_dir
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(extracted_dir)
+    _extract_nested_archives(extracted_dir)
     return extracted_dir
+
+
+def _extract_nested_archives(root: Path) -> None:
+    seven_zip = _find_7z_executable()
+    processed: set[Path] = set()
+    for _ in range(5):
+        archives = [
+            path
+            for path in sorted(root.rglob("*"))
+            if path.is_file() and path.suffix.lower() in {".7z", ".rar"}
+        ]
+        pending = [path for path in archives if path not in processed]
+        if not pending:
+            return
+        for nested_archive in pending:
+            processed.add(nested_archive)
+            target = nested_archive.with_suffix("")
+            target.mkdir(parents=True, exist_ok=True)
+            if seven_zip:
+                subprocess.run(
+                    [seven_zip, "x", str(nested_archive), f"-o{target}", "-y"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                continue
+            if nested_archive.suffix.lower() == ".7z":
+                try:
+                    import py7zr
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "IMS archive contains nested .7z/.rar files. Install 7-Zip "
+                        "or py7zr to extract them."
+                    ) from exc
+                with py7zr.SevenZipFile(nested_archive, mode="r") as zf:
+                    zf.extractall(path=target)
+            else:
+                raise RuntimeError("Nested .rar extraction requires 7-Zip.")
 
 
 def _segment(signal: np.ndarray, window_size: int, stride: int) -> np.ndarray:
@@ -64,7 +120,7 @@ def _segment(signal: np.ndarray, window_size: int, stride: int) -> np.ndarray:
 def _numeric_files(root: Path) -> list[Path]:
     files = []
     for path in root.rglob("*"):
-        if path.is_file() and not path.name.lower().endswith((".zip", ".rar", ".pdf", ".doc", ".docx")):
+        if path.is_file() and not path.name.lower().endswith((".zip", ".7z", ".rar", ".pdf", ".doc", ".docx")):
             files.append(path)
     return sorted(files)
 

@@ -1,6 +1,7 @@
 """Generate figures for the federated fuzzy bearing-monitoring experiment."""
 from __future__ import annotations
 
+import argparse
 import os
 
 import matplotlib.pyplot as plt
@@ -129,11 +130,20 @@ def plot_communication(cost: pd.DataFrame) -> None:
     _save("fig_communication_cost.png")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input-dir", default=OUT_DIR)
+    return parser.parse_args()
+
+
 def main() -> None:
+    global OUT_DIR, FIG_DIR
+    args = parse_args()
+    OUT_DIR = args.input_dir
+    FIG_DIR = os.path.join(OUT_DIR, "figures")
     summary = pd.read_csv(os.path.join(OUT_DIR, "federated_fuzzy_summary.csv"))
     detail = pd.read_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_detail.csv"))
     convergence = pd.read_csv(os.path.join(OUT_DIR, "federated_fuzzy_convergence.csv"))
-    cost = pd.read_csv(os.path.join(OUT_DIR, "federated_communication_cost_summary.csv"))
 
     plot_architecture()
     plot_mean_performance(summary)
@@ -142,7 +152,9 @@ def main() -> None:
     _plot_client_metric(detail, "miss_rate", "Miss rate", "fig_client_miss_rate.png")
     _plot_client_metric(detail, "health_gap", "Fuzzy health gap", "fig_client_health_gap.png")
     plot_convergence(convergence)
-    plot_communication(cost)
+    cost_path = os.path.join(OUT_DIR, "federated_communication_cost_summary.csv")
+    if os.path.exists(cost_path):
+        plot_communication(pd.read_csv(cost_path))
     print(f"Wrote figures to {FIG_DIR}")
 
 
