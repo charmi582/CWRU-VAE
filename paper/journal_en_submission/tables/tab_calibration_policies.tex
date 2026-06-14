@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{Dataset-level threshold calibration comparison for the Isolation Forest score.}
+\label{tab:calibration_policies}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Dataset & Policy & ROC-AUC & PR-AUC & F1 & FAR & Miss \\
+\midrule
+CWRU & train\_mad5 & 0.979 & 0.948 & 0.832 & 0.008 & 0.264 \\
+CWRU & train\_p95 & 0.979 & 0.948 & 0.852 & 0.065 & 0.102 \\
+CWRU & train\_p99 & 0.979 & 0.948 & 0.834 & 0.010 & 0.256 \\
+CWRU & val\_p95 & 0.979 & 0.948 & 0.849 & 0.070 & 0.101 \\
+CWRU & val\_p99 & 0.979 & 0.948 & 0.838 & 0.015 & 0.240 \\
+Paderborn & train\_mad5 & 0.785 & 0.836 & 0.030 & 0.024 & 0.981 \\
+Paderborn & train\_p95 & 0.785 & 0.836 & 0.522 & 0.122 & 0.594 \\
+Paderborn & train\_p99 & 0.785 & 0.836 & 0.053 & 0.033 & 0.969 \\
+Paderborn & val\_p95 & 0.785 & 0.836 & 0.520 & 0.119 & 0.595 \\
+Paderborn & val\_p99 & 0.785 & 0.836 & 0.118 & 0.038 & 0.926 \\
+\bottomrule
+\end{tabular}
+\end{table}

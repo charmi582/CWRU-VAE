@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Fuzzy health decision policies and health-index separation.}
+\label{tab:fuzzy_health}
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+Dataset & Policy & F1 & FAR & Miss & Uncertain & HI normal & HI fault \\
+\midrule
+CWRU & fuzzy fault only hi75 & 0.856 & 0.033 & 0.172 & 0.087 & 0.112 & 0.888 \\
+CWRU & fuzzy warning as alarm hi50 & 0.849 & 0.070 & 0.100 & 0.087 & 0.112 & 0.888 \\
+CWRU & hard val p95 & 0.849 & 0.070 & 0.100 & 0.087 & 0.112 & 0.888 \\
+Paderborn & fuzzy fault only hi75 & 0.391 & 0.068 & 0.721 & 0.156 & 0.147 & 0.411 \\
+Paderborn & fuzzy warning as alarm hi50 & 0.520 & 0.119 & 0.595 & 0.156 & 0.147 & 0.411 \\
+Paderborn & hard val p95 & 0.520 & 0.119 & 0.595 & 0.156 & 0.147 & 0.411 \\
+\bottomrule
+\end{tabular}
+\end{table}

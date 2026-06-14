@@ -1,0 +1,24 @@
+\begin{table}[t]
+\centering
+\caption{Paderborn external validation results under validation-P95 calibration.}
+\label{tab:paderborn_external}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Protocol & Model & ROC-AUC & PR-AUC & F1 & FAR & Miss \\
+\midrule
+bearing-wise & CNN-AE & 0.411 & 0.627 & 0.028 & 0.058 & 0.986 \\
+bearing-wise & IForest & 0.767 & 0.847 & 0.273 & 0.051 & 0.827 \\
+bearing-wise & LSTM-AE & 0.525 & 0.687 & 0.044 & 0.046 & 0.977 \\
+bearing-wise & VAE & 0.447 & 0.646 & 0.033 & 0.058 & 0.982 \\
+condition-wise & CNN-AE & 0.413 & 0.416 & 0.055 & 0.108 & 0.959 \\
+condition-wise & IForest & 0.720 & 0.737 & 0.368 & 0.146 & 0.735 \\
+condition-wise & LSTM-AE & 0.547 & 0.500 & 0.060 & 0.052 & 0.967 \\
+condition-wise & VAE & 0.424 & 0.421 & 0.063 & 0.122 & 0.949 \\
+file-wise & CNN-AE & 0.579 & 0.839 & 0.037 & 0.033 & 0.981 \\
+file-wise & IForest & 0.704 & 0.883 & 0.403 & 0.140 & 0.718 \\
+file-wise & LSTM-AE & 0.656 & 0.863 & 0.062 & 0.034 & 0.968 \\
+file-wise & VAE & 0.547 & 0.826 & 0.026 & 0.027 & 0.987 \\
+\bottomrule
+\end{tabular}
+\end{table}

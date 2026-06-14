@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{Reproducibility checklist for the released experimental pipeline.}
+\label{tab:reproducibility}
+\small
+\begin{tabular}{lll}
+\toprule
+Component & Released element & Purpose \\
+\midrule
+Data preparation & Dataset download/preprocessing scripts & Recreates windowed normal-only training and held-out test splits \\
+Protocols & Explicit load-wise, fault-size-wise, file-wise, condition-wise and bearing-wise split definitions & Avoids accidental sliding-window leakage and evaluates domain shift \\
+Models & VAE, CNN-AE, LSTM-AE and Isolation Forest implementations & Supports neural and classical baselines under common scoring outputs \\
+Calibration & Percentile and MAD threshold policies & Separates ranking quality from deployable alarm behavior \\
+Outputs & CSV metrics, figures and LaTeX tables & Makes numerical claims traceable to generated artifacts \\
+\bottomrule
+\end{tabular}
+\end{table}

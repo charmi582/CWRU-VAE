@@ -1,0 +1,24 @@
+\begin{table}[t]
+\centering
+\caption{CWRU results under strict protocols using validation-P99 calibration.}
+\label{tab:cwru_strict}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Protocol & Model & ROC-AUC & PR-AUC & F1 & FAR & Miss \\
+\midrule
+fault-size-wise & CNN-AE & 1.000 & 1.000 & 0.977 & 0.020 & 0.000 \\
+fault-size-wise & IForest & 0.984 & 0.966 & 0.858 & 0.017 & 0.216 \\
+fault-size-wise & LSTM-AE & 1.000 & 1.000 & 0.992 & 0.007 & 0.000 \\
+fault-size-wise & VAE & 1.000 & 1.000 & 0.970 & 0.026 & 0.000 \\
+file-wise & CNN-AE & 1.000 & 1.000 & 0.813 & 0.254 & 0.000 \\
+file-wise & IForest & 0.977 & 0.940 & 0.827 & 0.014 & 0.250 \\
+file-wise & LSTM-AE & 0.997 & 0.981 & 0.868 & 0.250 & 0.000 \\
+file-wise & VAE & 1.000 & 1.000 & 0.824 & 0.228 & 0.000 \\
+load-wise & CNN-AE & 1.000 & 1.000 & 0.825 & 0.229 & 0.000 \\
+load-wise & IForest & 0.978 & 0.941 & 0.833 & 0.014 & 0.247 \\
+load-wise & LSTM-AE & 0.999 & 0.989 & 0.866 & 0.250 & 0.000 \\
+load-wise & VAE & 1.000 & 1.000 & 0.827 & 0.229 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}

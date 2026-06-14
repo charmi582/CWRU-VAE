@@ -1,0 +1,18 @@
+
+\begin{table*}[t]
+\centering
+\caption{Positioning of the present work relative to recent bearing fault diagnosis studies. The table emphasizes evaluation assumptions rather than only model families.}
+\label{tab:literature_positioning}
+\small
+\begin{tabularx}{\textwidth}{p{2.7cm}p{2.9cm}p{2.7cm}p{2.9cm}X}
+\toprule
+Study direction & Typical learning setting & Main emphasis & Common limitation for deployment & Relation to this work \\
+\midrule
+Deep supervised diagnosis and CNN/Transformer models & Labeled fault classes & High classification accuracy under known classes & Requires fault labels and often uses condition-overlapping splits & We instead study normal-only anomaly detection and report strict generalization protocols. \\
+Autoencoder and VAE novelty detection & Mostly unsupervised or semi-supervised & Reconstruction error as anomaly score & Threshold selection and false alarm behavior are often secondary & We elevate calibration and health decision rules to primary contributions. \\
+Self-supervised bearing representation learning & Unlabeled pretraining with downstream evaluation & Transferable features and reduced label dependence & Often still evaluated as classification after feature learning & We keep the deployment task as binary abnormality screening with no fault labels in training. \\
+Domain adaptation/open-set diagnosis & Source-target adaptation, often with unlabeled target data & Robustness to load, speed, and dataset shift & Assumes access to target-domain adaptation data or source labels & We use stricter holdout protocols and compare calibration behavior across CWRU and Paderborn. \\
+Fuzzy health assessment & Rule-based or score-fusion health states & Interpretable condition categories & Frequently detached from modern anomaly scores & We connect fuzzy membership functions to calibrated VAE/CNN-AE/IForest anomaly scores. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
