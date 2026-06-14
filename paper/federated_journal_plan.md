@@ -6,26 +6,26 @@ Privacy-Preserving Normal-Only Bearing Health Monitoring Using Federated Reconst
 
 ## Central Thesis
 
-This paper studies whether bearing health monitoring can be deployed across multiple companies or factory sites without collecting raw vibration data at a central server. The work does not claim that federated learning automatically improves accuracy. Instead, it treats federated learning as a privacy-preserving deployment mechanism and evaluates FedAvg, FedProx, and personalized local adaptation against local-only and centralized references.
+This paper studies whether bearing health monitoring can be deployed across multiple companies or factory sites without collecting raw vibration data at a central server. The work does not claim that federated learning automatically improves accuracy. Instead, it treats federated learning as a privacy-preserving deployment mechanism and evaluates FedAvg, FedProx, FedBN, and personalized local adaptation against local-only and centralized references.
 
 ## Research Questions
 
 **RQ1. Centralized reference gap.** Can FedAvg approach a centralized reference model while keeping raw bearing vibration windows local to each client?
 
-**RQ2. Local-only tradeoff.** Do FedAvg, FedProx, or personalized federated adaptation provide a more useful deployment point than training each client independently?
+**RQ2. Local-only tradeoff.** Do FedAvg, FedProx, FedBN, or personalized federated adaptation provide a more useful deployment point than training each client independently?
 
 **RQ3. Client stability.** Which clients suffer false-alarm, miss-rate, or health-index drift under local-only, centralized, and federated settings?
 
 **RQ4. Calibration under non-IID clients.** Does client-specific threshold calibration behave differently from pooled calibration when clients represent different bearings or operating conditions?
 
-**RQ5. Non-IID federated adaptation.** Does FedProx or one-step client personalization reduce the false-alarm, miss-rate, or health-index drift observed with plain FedAvg?
+**RQ5. Non-IID federated adaptation.** Does FedProx, FedBN, or one-step client personalization reduce the false-alarm, miss-rate, or health-index drift observed with plain FedAvg?
 
 **RQ6. Deployability.** What communication cost is introduced by federated model updates, and how does it compare conceptually with sharing raw vibration streams?
 
 ## Main Contributions
 
 1. A privacy-preserving normal-only bearing monitoring framework that trains reconstruction models through local client updates and federated aggregation.
-2. A deployment-oriented comparison among local-only, centralized, FedAvg, FedProx, and personalized federated settings under bearing-wise and condition-wise client partitions.
+2. A deployment-oriented comparison among local-only, centralized, FedAvg, FedProx, FedBN, and personalized federated settings under bearing-wise and condition-wise client partitions.
 3. A calibration analysis showing that threshold anchors are not neutral under non-IID clients; client-specific and pooled calibration change FAR/miss-rate behavior.
 4. A fuzzy health-index decision layer that converts anomaly scores into graded normal, warning, fault, and uncertain regions.
 5. A reproducible experiment package with metrics, client-stability summaries, convergence curves, communication-cost estimates, and figure-generation scripts.
@@ -45,8 +45,10 @@ This paper studies whether bearing health monitoring can be deployed across mult
   - centralized
   - FedAvg
   - FedProx
+  - FedBN
   - FedAvg-personalized
   - FedProx-personalized
+  - FedBN-personalized
 - Model:
   - main: CNN-AE
   - supplementary: VAE after stabilization
@@ -62,7 +64,7 @@ This paper studies whether bearing health monitoring can be deployed across mult
 
 ## Current Result Interpretation
 
-Plain FedAvg does not dominate local-only or centralized training in F1. This should be presented as an honest deployment result rather than a weakness. In realistic industrial settings, the value of federated learning is not automatic accuracy gain, but privacy-preserving collaboration. The stronger result is that non-IID adaptation matters: FedProx-personalized currently improves the operating point over plain FedAvg under both bearing-wise and condition-wise clients. Calibration and client stability also change substantially even when ranking metrics such as PR-AUC remain high.
+Plain FedAvg does not dominate local-only or centralized training in F1. This should be presented as an honest deployment result rather than a weakness. In realistic industrial settings, the value of federated learning is not automatic accuracy gain, but privacy-preserving collaboration. The stronger result is that non-IID adaptation matters: FedBN-personalized currently gives the strongest bearing-wise operating point, while personalized FedAvg, FedProx, and FedBN all improve over plain FedAvg under condition-wise clients. Calibration and client stability also change substantially even when ranking metrics such as PR-AUC remain high.
 
 ## Figures Already Available
 

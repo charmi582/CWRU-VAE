@@ -72,7 +72,7 @@ def plot_mean_performance(summary: pd.DataFrame) -> None:
 def plot_calibration_scope(summary: pd.DataFrame) -> None:
     data = summary[
         summary["decision_policy"].eq("fuzzy_warning_as_alarm_hi50")
-        & summary["training_mode"].isin(["centralized", "fedavg", "fedprox"])
+        & summary["training_mode"].isin(["centralized", "fedavg", "fedprox", "fedbn"])
     ].copy()
     data["label"] = data["clients_by"] + " / " + data["training_mode"] + " / " + data["calibration_scope"]
     fig, ax = plt.subplots(figsize=(10, 4.6))
@@ -111,9 +111,9 @@ def plot_convergence(convergence: pd.DataFrame) -> None:
     for label, sub in data.groupby(["clients_by", "training_mode"]):
         sub = sub.sort_values("round")
         ax.plot(sub["round"], sub["f1"], marker="o", label=f"{label[0]} / {label[1]}")
-    ax.set_xlabel("FedAvg round")
+    ax.set_xlabel("Federated round")
     ax.set_ylabel("F1")
-    ax.set_title("FedAvg convergence under non-IID clients")
+    ax.set_title("Federated convergence under non-IID clients")
     ax.legend(title="Client split / method")
     _save("fig_fedavg_convergence.png")
 

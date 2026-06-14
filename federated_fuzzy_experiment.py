@@ -8,6 +8,8 @@ comparison:
 - fedavg: clients train locally and share only model weights for FedAvg.
 - fedprox: clients use a proximal penalty during local training to reduce
   non-IID client drift.
+- fedbn: clients aggregate non-BatchNorm parameters while keeping local
+  BatchNorm statistics private.
 - personalized variants: the federated global model is locally adapted on each
   client's normal windows before evaluation.
 
@@ -191,6 +193,45 @@ def fedavg(states: list[dict[str, torch.Tensor]], weights: list[int]) -> dict[st
     return out
 
 
+def batchnorm_state_keys(model) -> set[str]:
+    keys: set[str] = set()
+    for module_name, module in model.named_modules():
+        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+            prefix = f"{module_name}." if module_name else ""
+            keys.update(prefix + key for key in module.state_dict().keys())
+    return keys
+
+
+def fedavg_excluding(
+    states: list[dict[str, torch.Tensor]],
+    weights: list[int],
+    excluded_keys: set[str],
+) -> dict[str, torch.Tensor]:
+    total = float(sum(weights))
+    out = {}
+    for key in states[0]:
+        tensor = states[0][key]
+        if key in excluded_keys:
+            out[key] = tensor.clone()
+        elif torch.is_floating_point(tensor):
+            out[key] = sum(state[key] * (weight / total) for state, weight in zip(states, weights))
+        else:
+            out[key] = tensor.clone()
+    return out
+
+
+def merge_shared_state(
+    client_state: dict[str, torch.Tensor],
+    global_state: dict[str, torch.Tensor],
+    local_keys: set[str],
+) -> dict[str, torch.Tensor]:
+    merged = copy.deepcopy(client_state)
+    for key, value in global_state.items():
+        if key not in local_keys:
+            merged[key] = value.detach().cpu().clone()
+    return merged
+
+
 def binary_metrics(y_true: np.ndarray, score: np.ndarray, y_pred: np.ndarray):
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     far = fp / (fp + tn) if (fp + tn) else 0.0
@@ -306,6 +347,96 @@ def evaluate_state(
     return rows
 
 
+def evaluate_client_states(
+    seed: int,
+    clients_by: str,
+    training_mode: str,
+    round_i: int,
+    model_name: str,
+    input_size: int,
+    states_by_client: dict[str, dict[str, torch.Tensor]],
+    X: np.ndarray,
+    y: np.ndarray,
+    clients: dict[str, dict[str, np.ndarray]],
+    fault_idx: np.ndarray,
+    device: torch.device,
+    calibration_scopes: tuple[str, ...] = ("client_specific",),
+) -> list[FederatedFuzzyRow]:
+    rows = []
+    val_scores_by_client = {}
+    normal_scores_by_client = {}
+    fault_scores_by_client = {}
+
+    for client_id, split in clients.items():
+        model = model_factory(model_name, input_size)().to(device)
+        model.load_state_dict(states_by_client[client_id])
+        val_scores_by_client[client_id] = sanitize_scores(reconstruction_errors(model, X[split["val"]], device))
+        normal_scores_by_client[client_id] = sanitize_scores(reconstruction_errors(model, X[split["test"]], device))
+        if len(fault_idx):
+            fault_scores_by_client[client_id] = sanitize_scores(reconstruction_errors(model, X[fault_idx], device))
+        else:
+            fault_scores_by_client[client_id] = np.array([])
+
+    pooled_val_scores = np.concatenate(list(val_scores_by_client.values()))
+    pooled_anchors = tuple(float(np.percentile(pooled_val_scores, p)) for p in (50, 90, 95, 99))
+    fault_labels = y[fault_idx] if len(fault_idx) else np.array([], dtype=np.int32)
+
+    for client_id, split in clients.items():
+        normal_scores = normal_scores_by_client[client_id]
+        eval_scores = normal_scores
+        eval_labels = np.zeros(len(normal_scores), dtype=np.int32)
+        if len(fault_idx):
+            eval_scores = np.concatenate([normal_scores, fault_scores_by_client[client_id]])
+            eval_labels = np.concatenate([eval_labels, fault_labels])
+
+        client_anchors = tuple(float(np.percentile(val_scores_by_client[client_id], p)) for p in (50, 90, 95, 99))
+        for calibration_scope in calibration_scopes:
+            if calibration_scope == "client_specific":
+                p50, p90, p95, p99 = client_anchors
+            elif calibration_scope == "pooled":
+                p50, p90, p95, p99 = pooled_anchors
+            else:
+                raise ValueError(f"Unsupported calibration scope: {calibration_scope}")
+
+            _, _, _, health, _ = fuzzy_membership(eval_scores, p50, p90, p95, p99)
+            uncertain = ((health >= 0.25) & (health < 0.75)).astype(np.int32)
+            mean_normal = float(health[eval_labels == 0].mean()) if (eval_labels == 0).any() else 0.0
+            mean_fault = float(health[eval_labels == 1].mean()) if (eval_labels == 1).any() else 0.0
+            policies = {
+                "hard_val_p95": (eval_scores > p95).astype(np.int32),
+                "fuzzy_warning_as_alarm_hi50": (health >= 0.50).astype(np.int32),
+                "fuzzy_fault_only_hi75": (health >= 0.75).astype(np.int32),
+            }
+            for policy, y_pred in policies.items():
+                metrics = binary_metrics(eval_labels, health, y_pred)
+                rows.append(
+                    FederatedFuzzyRow(
+                        seed=seed,
+                        clients_by=clients_by,
+                        training_mode=training_mode,
+                        calibration_scope=calibration_scope,
+                        round=round_i,
+                        model=model_name,
+                        client_id=client_id,
+                        client_train_count=len(split["train"]),
+                        client_val_count=len(split["val"]),
+                        client_test_normal_count=len(split["test"]),
+                        fault_audit_count=len(fault_idx),
+                        decision_policy=policy,
+                        p50=p50,
+                        p90=p90,
+                        p95=p95,
+                        p99=p99,
+                        uncertain_rate=float(uncertain.mean()),
+                        mean_health_normal=mean_normal,
+                        mean_health_fault=mean_fault,
+                        health_gap=mean_fault - mean_normal,
+                        **metrics,
+                    )
+                )
+    return rows
+
+
 def run_model(
     model_name: str,
     input_size: int,
@@ -328,6 +459,7 @@ def run_model(
     torch.manual_seed(seed)
     base_model = model_factory(model_name, input_size)().to(device)
     initial_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+    bn_keys = batchnorm_state_keys(base_model)
 
     rows = []
 
@@ -367,14 +499,18 @@ def run_model(
     for method in federated_methods:
         print(f"[{model_name}] {method}")
         global_state = copy.deepcopy(initial_state)
+        client_states = {client_id: copy.deepcopy(initial_state) for client_id in clients}
         for round_i in range(1, rounds + 1):
             local_states = []
             weights = []
             print(f"  round={round_i}/{rounds}")
             for client_id, split in clients.items():
                 print(f"    client={client_id}")
+                start_state = copy.deepcopy(global_state)
+                if method == "fedbn":
+                    start_state = merge_shared_state(client_states[client_id], global_state, bn_keys)
                 state, _ = train_model_from_state(
-                    copy.deepcopy(global_state),
+                    start_state,
                     model_name,
                     input_size,
                     X[split["train"]],
@@ -386,19 +522,36 @@ def run_model(
                 )
                 local_states.append(state)
                 weights.append(len(split["train"]))
-            global_state = fedavg(local_states, weights)
+                client_states[client_id] = copy.deepcopy(state)
+            if method == "fedbn":
+                global_state = fedavg_excluding(local_states, weights, bn_keys)
+            else:
+                global_state = fedavg(local_states, weights)
             if evaluate_each_round:
-                rows.extend(
-                    evaluate_state(seed, clients_by, method, round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
-                )
+                if method == "fedbn":
+                    rows.extend(
+                        evaluate_client_states(seed, clients_by, method, round_i, model_name, input_size, client_states, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                    )
+                else:
+                    rows.extend(
+                        evaluate_state(seed, clients_by, method, round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                    )
         if not evaluate_each_round:
-            rows.extend(
-                evaluate_state(seed, clients_by, method, rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
-            )
+            if method == "fedbn":
+                rows.extend(
+                    evaluate_client_states(seed, clients_by, method, rounds, model_name, input_size, client_states, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                )
+            else:
+                rows.extend(
+                    evaluate_state(seed, clients_by, method, rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
+                )
         if personalize_epochs > 0:
             for client_id, split in clients.items():
+                start_state = global_state
+                if method == "fedbn":
+                    start_state = merge_shared_state(client_states[client_id], global_state, bn_keys)
                 personalized_state, _ = train_model_from_state(
-                    copy.deepcopy(global_state),
+                    copy.deepcopy(start_state),
                     model_name,
                     input_size,
                     X[split["train"]],
@@ -513,7 +666,7 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         formal[col] = formal[col].round(4)
     formal.to_csv(os.path.join(OUT_DIR, "federated_formal_cnn_ae_hard_p95_summary.csv"), index=False)
     convergence = (
-        df[df["training_mode"].isin(["fedavg", "fedprox"])]
+        df[df["training_mode"].isin(["fedavg", "fedprox", "fedbn"])]
         .groupby(["clients_by", "training_mode", "calibration_scope", "model", "decision_policy", "round"])[metric_cols]
         .mean()
         .reset_index()
@@ -534,6 +687,7 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         "- `centralized` is the upper-reference setting that pools normal data and would require data sharing.\n",
         "- `fedavg` approximates collaborative normal-only training without sharing raw vibration windows.\n",
         "- `fedprox` adds a proximal penalty to reduce local client drift under non-IID data.\n",
+        "- `fedbn` keeps BatchNorm parameters and running statistics local to each client.\n",
         "- `*-personalized` locally adapts the federated global model before client evaluation.\n",
         "- Client stability is evaluated through the standard deviation of false alarm rate, miss rate, uncertain rate, and fuzzy health gap across clients.\n",
         "- The fuzzy layer is model-agnostic here because it is applied to both VAE and CNN-AE reconstruction scores.\n",
@@ -561,7 +715,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", nargs="+", type=int, default=None)
     parser.add_argument("--evaluate-each-round", action="store_true")
     parser.add_argument("--calibration-scopes", nargs="+", choices=["client_specific", "pooled"], default=["client_specific", "pooled"])
-    parser.add_argument("--federated-methods", nargs="+", choices=["fedavg", "fedprox"], default=["fedavg"])
+    parser.add_argument("--federated-methods", nargs="+", choices=["fedavg", "fedprox", "fedbn"], default=["fedavg"])
     parser.add_argument("--fedprox-mu", type=float, default=0.01)
     parser.add_argument("--personalize-epochs", type=int, default=1)
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
