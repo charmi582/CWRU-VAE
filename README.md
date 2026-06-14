@@ -749,17 +749,17 @@ Outputs:
 - `results/external/ims/ims_window_summary.csv`
 - `results/external/ims/ims_window_summary.md`
 
-Run the first IMS federated external validation pilot:
+Run the formal IMS federated external validation:
 
 ```bash
 python federated_fuzzy_experiment.py \
   --dataset ims \
   --models cnn-ae \
   --client-partitions bearing condition \
-  --rounds 3 \
-  --local-epochs 1 \
-  --centralized-epochs 3 \
-  --seeds 42 \
+  --rounds 10 \
+  --local-epochs 2 \
+  --centralized-epochs 20 \
+  --seeds 42 202 777 \
   --evaluate-each-round \
   --federated-methods fedavg fedprox fedbn \
   --fedprox-mu 0.01 \
@@ -767,13 +767,13 @@ python federated_fuzzy_experiment.py \
   --calibration-scopes client_specific pooled adaptive
 ```
 
-Generate IMS pilot figures:
+Generate IMS formal figures:
 
 ```bash
 python federated_fuzzy_plotting.py --input-dir results/federated_fuzzy_ims
 ```
 
-IMS pilot outputs:
+IMS formal outputs:
 
 - `results/federated_fuzzy_ims/federated_fuzzy_metrics.csv`
 - `results/federated_fuzzy_ims/federated_formal_cnn_ae_hard_p95_summary.csv`
