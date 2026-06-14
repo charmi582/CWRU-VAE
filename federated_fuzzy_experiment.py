@@ -44,6 +44,7 @@ class FederatedFuzzyRow:
     seed: int
     clients_by: str
     training_mode: str
+    calibration_scope: str
     round: int
     model: str
     client_id: str
@@ -193,6 +194,7 @@ def evaluate_state(
     clients: dict[str, dict[str, np.ndarray]],
     fault_idx: np.ndarray,
     device: torch.device,
+    calibration_scopes: tuple[str, ...] = ("client_specific",),
 ) -> list[FederatedFuzzyRow]:
     model = model_factory(model_name, input_size)().to(device)
     model.load_state_dict(state)
@@ -200,9 +202,14 @@ def evaluate_state(
     fault_scores = reconstruction_errors(model, X[fault_idx], device) if len(fault_idx) else np.array([])
     fault_scores = sanitize_scores(fault_scores) if len(fault_scores) else fault_scores
     fault_labels = y[fault_idx] if len(fault_idx) else np.array([], dtype=np.int32)
+    val_scores_by_client = {
+        client_id: sanitize_scores(reconstruction_errors(model, X[split["val"]], device))
+        for client_id, split in clients.items()
+    }
+    pooled_val_scores = np.concatenate(list(val_scores_by_client.values()))
+    pooled_anchors = tuple(float(np.percentile(pooled_val_scores, p)) for p in (50, 90, 95, 99))
 
     for client_id, split in clients.items():
-        val_scores = sanitize_scores(reconstruction_errors(model, X[split["val"]], device))
         normal_scores = sanitize_scores(reconstruction_errors(model, X[split["test"]], device))
         eval_scores = normal_scores
         eval_labels = np.zeros(len(normal_scores), dtype=np.int32)
@@ -210,43 +217,52 @@ def evaluate_state(
             eval_scores = np.concatenate([normal_scores, fault_scores])
             eval_labels = np.concatenate([eval_labels, fault_labels])
 
-        p50, p90, p95, p99 = [float(np.percentile(val_scores, p)) for p in (50, 90, 95, 99)]
-        _, _, _, health, _ = fuzzy_membership(eval_scores, p50, p90, p95, p99)
-        uncertain = ((health >= 0.25) & (health < 0.75)).astype(np.int32)
-        mean_normal = float(health[eval_labels == 0].mean()) if (eval_labels == 0).any() else 0.0
-        mean_fault = float(health[eval_labels == 1].mean()) if (eval_labels == 1).any() else 0.0
+        client_anchors = tuple(float(np.percentile(val_scores_by_client[client_id], p)) for p in (50, 90, 95, 99))
+        for calibration_scope in calibration_scopes:
+            if calibration_scope == "client_specific":
+                p50, p90, p95, p99 = client_anchors
+            elif calibration_scope == "pooled":
+                p50, p90, p95, p99 = pooled_anchors
+            else:
+                raise ValueError(f"Unsupported calibration scope: {calibration_scope}")
 
-        policies = {
-            "hard_val_p95": (eval_scores > p95).astype(np.int32),
-            "fuzzy_warning_as_alarm_hi50": (health >= 0.50).astype(np.int32),
-            "fuzzy_fault_only_hi75": (health >= 0.75).astype(np.int32),
-        }
-        for policy, y_pred in policies.items():
-            metrics = binary_metrics(eval_labels, health, y_pred)
-            rows.append(
-                FederatedFuzzyRow(
-                    seed=seed,
-                    clients_by=clients_by,
-                    training_mode=training_mode,
-                    round=round_i,
-                    model=model_name,
-                    client_id=client_id,
-                    client_train_count=len(split["train"]),
-                    client_val_count=len(split["val"]),
-                    client_test_normal_count=len(split["test"]),
-                    fault_audit_count=len(fault_idx),
-                    decision_policy=policy,
-                    p50=p50,
-                    p90=p90,
-                    p95=p95,
-                    p99=p99,
-                    uncertain_rate=float(uncertain.mean()),
-                    mean_health_normal=mean_normal,
-                    mean_health_fault=mean_fault,
-                    health_gap=mean_fault - mean_normal,
-                    **metrics,
+            _, _, _, health, _ = fuzzy_membership(eval_scores, p50, p90, p95, p99)
+            uncertain = ((health >= 0.25) & (health < 0.75)).astype(np.int32)
+            mean_normal = float(health[eval_labels == 0].mean()) if (eval_labels == 0).any() else 0.0
+            mean_fault = float(health[eval_labels == 1].mean()) if (eval_labels == 1).any() else 0.0
+
+            policies = {
+                "hard_val_p95": (eval_scores > p95).astype(np.int32),
+                "fuzzy_warning_as_alarm_hi50": (health >= 0.50).astype(np.int32),
+                "fuzzy_fault_only_hi75": (health >= 0.75).astype(np.int32),
+            }
+            for policy, y_pred in policies.items():
+                metrics = binary_metrics(eval_labels, health, y_pred)
+                rows.append(
+                    FederatedFuzzyRow(
+                        seed=seed,
+                        clients_by=clients_by,
+                        training_mode=training_mode,
+                        calibration_scope=calibration_scope,
+                        round=round_i,
+                        model=model_name,
+                        client_id=client_id,
+                        client_train_count=len(split["train"]),
+                        client_val_count=len(split["val"]),
+                        client_test_normal_count=len(split["test"]),
+                        fault_audit_count=len(fault_idx),
+                        decision_policy=policy,
+                        p50=p50,
+                        p90=p90,
+                        p95=p95,
+                        p99=p99,
+                        uncertain_rate=float(uncertain.mean()),
+                        mean_health_normal=mean_normal,
+                        mean_health_fault=mean_fault,
+                        health_gap=mean_fault - mean_normal,
+                        **metrics,
+                    )
                 )
-            )
     return rows
 
 
@@ -264,6 +280,7 @@ def run_model(
     seed: int,
     device: torch.device,
     evaluate_each_round: bool = False,
+    calibration_scopes: tuple[str, ...] = ("client_specific", "pooled"),
 ) -> list[FederatedFuzzyRow]:
     torch.manual_seed(seed)
     base_model = model_factory(model_name, input_size)().to(device)
@@ -285,7 +302,7 @@ def run_model(
         )
         one_client = {client_id: split}
         rows.extend(
-            evaluate_state(seed, clients_by, "local-only", rounds, model_name, input_size, local_state, X, y, one_client, fault_idx, device)
+            evaluate_state(seed, clients_by, "local-only", rounds, model_name, input_size, local_state, X, y, one_client, fault_idx, device, calibration_scopes=("client_specific",))
         )
 
     print(f"[{model_name}] centralized")
@@ -301,7 +318,7 @@ def run_model(
         device=device,
     )
     rows.extend(
-        evaluate_state(seed, clients_by, "centralized", centralized_epochs, model_name, input_size, central_state, X, y, clients, fault_idx, device)
+        evaluate_state(seed, clients_by, "centralized", centralized_epochs, model_name, input_size, central_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
     )
 
     print(f"[{model_name}] federated")
@@ -326,11 +343,11 @@ def run_model(
         global_state = fedavg(local_states, weights)
         if evaluate_each_round:
             rows.extend(
-                evaluate_state(seed, clients_by, "federated", round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device)
+                evaluate_state(seed, clients_by, "federated", round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
             )
     if not evaluate_each_round:
         rows.extend(
-            evaluate_state(seed, clients_by, "federated", rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device)
+            evaluate_state(seed, clients_by, "federated", rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device, calibration_scopes=calibration_scopes)
         )
     return rows
 
@@ -360,12 +377,12 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         "health_gap",
     ]
     summary = (
-        df.groupby(["clients_by", "training_mode", "model", "decision_policy"])[metric_cols]
+        df.groupby(["clients_by", "training_mode", "calibration_scope", "model", "decision_policy"])[metric_cols]
         .mean()
         .reset_index()
     )
     stability = (
-        df.groupby(["clients_by", "training_mode", "model", "decision_policy"])[
+        df.groupby(["clients_by", "training_mode", "calibration_scope", "model", "decision_policy"])[
             ["false_alarm_rate", "miss_rate", "uncertain_rate", "health_gap"]
         ]
         .std(ddof=0)
@@ -384,6 +401,7 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
             "training_mode",
             "seed",
             "clients_by",
+            "calibration_scope",
             "model",
             "client_id",
             "decision_policy",
@@ -401,7 +419,7 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
     client.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_detail.csv"), index=False)
     convergence = (
         df[df["training_mode"].eq("federated")]
-        .groupby(["clients_by", "model", "decision_policy", "round"])[metric_cols]
+        .groupby(["clients_by", "calibration_scope", "model", "decision_policy", "round"])[metric_cols]
         .mean()
         .reset_index()
     )
@@ -445,6 +463,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--seeds", nargs="+", type=int, default=None)
     parser.add_argument("--evaluate-each-round", action="store_true")
+    parser.add_argument("--calibration-scopes", nargs="+", choices=["client_specific", "pooled"], default=["client_specific", "pooled"])
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
     return parser.parse_args()
 
@@ -488,6 +507,7 @@ def main() -> None:
                         seed=seed,
                         device=device,
                         evaluate_each_round=args.evaluate_each_round,
+                        calibration_scopes=tuple(args.calibration_scopes),
                     )
                 )
 

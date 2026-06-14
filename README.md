@@ -653,29 +653,38 @@ The formal federated fuzzy experiment compares three deployment modes:
 - `federated`: clients train locally and share only model weights through
   FedAvg.
 
-Run the current Paderborn comparison:
+Run a quick Paderborn smoke test:
 
 ```bash
 python federated_fuzzy_experiment.py \
-  --models cnn-ae vae \
+  --models cnn-ae \
   --rounds 2 \
   --local-epochs 1 \
   --centralized-epochs 2 \
-  --max-files-per-condition 1
+  --max-files-per-condition 1 \
+  --calibration-scopes client_specific pooled
 ```
 
-Formal multi-client, multi-seed setting used for the next research stage:
+Formal multi-client, multi-seed setting used for the federated study:
 
 ```bash
 python federated_fuzzy_experiment.py \
-  --models cnn-ae vae \
+  --models cnn-ae \
   --client-partitions bearing condition \
   --rounds 10 \
   --local-epochs 2 \
   --centralized-epochs 20 \
   --max-files-per-condition 1 \
   --seeds 42 202 777 \
-  --evaluate-each-round
+  --evaluate-each-round \
+  --calibration-scopes client_specific pooled
+```
+
+Estimate deployment communication cost and regenerate all federated figures:
+
+```bash
+python federated_deployment_analysis.py
+python federated_fuzzy_plotting.py
 ```
 
 Outputs:
@@ -686,6 +695,7 @@ Outputs:
 - `results/federated_fuzzy/federated_fuzzy_client_detail.csv`
 - `results/federated_fuzzy/federated_fuzzy_convergence.csv`
 - `results/federated_fuzzy/federated_formal_cnn_ae_hard_p95_summary.csv`
+- `results/federated_fuzzy/federated_communication_cost_summary.csv`
 - `results/federated_fuzzy/federated_formal_experiment_notes.md`
 - `results/federated_fuzzy/figures/`
 - `results/federated_fuzzy/federated_fuzzy_summary.md`
@@ -697,6 +707,10 @@ Main finding:
 - Local-only, centralized, and federated results must be reported together.
 - Client stability is evaluated with false alarm rate, miss rate, uncertain
   rate, and fuzzy health-gap variation.
+- Client-specific and pooled calibration are both reported because threshold
+  anchors can shift under non-IID clients.
+- FedAvg communication traffic is reported explicitly; raw vibration windows are
+  not transmitted.
 - The fuzzy decision layer now supports both VAE and CNN-AE reconstruction
   scores.
 - In the formal 10-round Paderborn setting, CNN-AE is the main viable model.

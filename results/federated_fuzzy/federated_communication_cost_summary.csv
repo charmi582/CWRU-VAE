@@ -1,0 +1,5 @@
+model,client_partition,num_clients,rounds,parameters,model_size_mb_fp32,uplink_mb_total,downlink_mb_total,bidirectional_mb_total,raw_data_shared
+cnn-ae,bearing,6,10,33704737,128.5734,7714.4021,7714.4021,15428.8042,No
+cnn-ae,condition,4,10,33704737,128.5734,5142.9347,5142.9347,10285.8694,No
+vae,bearing,6,10,33712961,128.6047,7716.2844,7716.2844,15432.5688,No
+vae,condition,4,10,33712961,128.6047,5144.1896,5144.1896,10288.3792,No
