@@ -664,12 +664,30 @@ python federated_fuzzy_experiment.py \
   --max-files-per-condition 1
 ```
 
+Formal multi-client, multi-seed setting used for the next research stage:
+
+```bash
+python federated_fuzzy_experiment.py \
+  --models cnn-ae vae \
+  --client-partitions bearing condition \
+  --rounds 10 \
+  --local-epochs 2 \
+  --centralized-epochs 20 \
+  --max-files-per-condition 1 \
+  --seeds 42 202 777 \
+  --evaluate-each-round
+```
+
 Outputs:
 
 - `results/federated_fuzzy/federated_fuzzy_metrics.csv`
 - `results/federated_fuzzy/federated_fuzzy_summary.csv`
 - `results/federated_fuzzy/federated_fuzzy_client_stability.csv`
 - `results/federated_fuzzy/federated_fuzzy_client_detail.csv`
+- `results/federated_fuzzy/federated_fuzzy_convergence.csv`
+- `results/federated_fuzzy/federated_formal_cnn_ae_hard_p95_summary.csv`
+- `results/federated_fuzzy/federated_formal_experiment_notes.md`
+- `results/federated_fuzzy/figures/`
 - `results/federated_fuzzy/federated_fuzzy_summary.md`
 
 Main finding:
@@ -681,3 +699,6 @@ Main finding:
   rate, and fuzzy health-gap variation.
 - The fuzzy decision layer now supports both VAE and CNN-AE reconstruction
   scores.
+- In the formal 10-round Paderborn setting, CNN-AE is the main viable model.
+  VAE remains supplementary because it is unstable under some non-IID
+  federated client partitions.

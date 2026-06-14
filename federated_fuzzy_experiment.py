@@ -41,6 +41,8 @@ OUT_DIR = os.path.join("results", "federated_fuzzy")
 
 @dataclass
 class FederatedFuzzyRow:
+    seed: int
+    clients_by: str
     training_mode: str
     round: int
     model: str
@@ -179,6 +181,8 @@ def sanitize_scores(scores: np.ndarray) -> np.ndarray:
 
 
 def evaluate_state(
+    seed: int,
+    clients_by: str,
     training_mode: str,
     round_i: int,
     model_name: str,
@@ -221,6 +225,8 @@ def evaluate_state(
             metrics = binary_metrics(eval_labels, health, y_pred)
             rows.append(
                 FederatedFuzzyRow(
+                    seed=seed,
+                    clients_by=clients_by,
                     training_mode=training_mode,
                     round=round_i,
                     model=model_name,
@@ -250,12 +256,14 @@ def run_model(
     X: np.ndarray,
     y: np.ndarray,
     clients: dict[str, dict[str, np.ndarray]],
+    clients_by: str,
     fault_idx: np.ndarray,
     rounds: int,
     local_epochs: int,
     centralized_epochs: int,
     seed: int,
     device: torch.device,
+    evaluate_each_round: bool = False,
 ) -> list[FederatedFuzzyRow]:
     torch.manual_seed(seed)
     base_model = model_factory(model_name, input_size)().to(device)
@@ -277,7 +285,7 @@ def run_model(
         )
         one_client = {client_id: split}
         rows.extend(
-            evaluate_state("local-only", 0, model_name, input_size, local_state, X, y, one_client, fault_idx, device)
+            evaluate_state(seed, clients_by, "local-only", rounds, model_name, input_size, local_state, X, y, one_client, fault_idx, device)
         )
 
     print(f"[{model_name}] centralized")
@@ -293,7 +301,7 @@ def run_model(
         device=device,
     )
     rows.extend(
-        evaluate_state("centralized", 0, model_name, input_size, central_state, X, y, clients, fault_idx, device)
+        evaluate_state(seed, clients_by, "centralized", centralized_epochs, model_name, input_size, central_state, X, y, clients, fault_idx, device)
     )
 
     print(f"[{model_name}] federated")
@@ -316,9 +324,14 @@ def run_model(
             local_states.append(state)
             weights.append(len(split["train"]))
         global_state = fedavg(local_states, weights)
-    rows.extend(
-        evaluate_state("federated", rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device)
-    )
+        if evaluate_each_round:
+            rows.extend(
+                evaluate_state(seed, clients_by, "federated", round_i, model_name, input_size, global_state, X, y, clients, fault_idx, device)
+            )
+    if not evaluate_each_round:
+        rows.extend(
+            evaluate_state(seed, clients_by, "federated", rounds, model_name, input_size, global_state, X, y, clients, fault_idx, device)
+        )
     return rows
 
 
@@ -347,12 +360,12 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         "health_gap",
     ]
     summary = (
-        df.groupby(["training_mode", "model", "decision_policy"])[metric_cols]
+        df.groupby(["clients_by", "training_mode", "model", "decision_policy"])[metric_cols]
         .mean()
         .reset_index()
     )
     stability = (
-        df.groupby(["training_mode", "model", "decision_policy"])[
+        df.groupby(["clients_by", "training_mode", "model", "decision_policy"])[
             ["false_alarm_rate", "miss_rate", "uncertain_rate", "health_gap"]
         ]
         .std(ddof=0)
@@ -369,6 +382,8 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
     client = df[
         [
             "training_mode",
+            "seed",
+            "clients_by",
             "model",
             "client_id",
             "decision_policy",
@@ -384,6 +399,13 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
     summary.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_summary.csv"), index=False)
     stability.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_stability.csv"), index=False)
     client.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_client_detail.csv"), index=False)
+    convergence = (
+        df[df["training_mode"].eq("federated")]
+        .groupby(["clients_by", "model", "decision_policy", "round"])[metric_cols]
+        .mean()
+        .reset_index()
+    )
+    convergence.to_csv(os.path.join(OUT_DIR, "federated_fuzzy_convergence.csv"), index=False)
 
     lines = [
         "# Federated Fuzzy Health-Index Comparison\n\n",
@@ -392,6 +414,8 @@ def summarize(rows: list[FederatedFuzzyRow]) -> None:
         md_table(summary),
         "\n\n## Client Stability\n\n",
         md_table(stability),
+        "\n\n## Federated Convergence\n\n",
+        md_table(convergence),
         "\n\n## Interpretation\n\n",
         "- `local-only` shows how each private site performs without collaboration.\n",
         "- `centralized` is the upper-reference setting that pools normal data and would require data sharing.\n",
@@ -406,6 +430,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", nargs="+", choices=["vae", "cnn-ae"], default=["cnn-ae", "vae"])
     parser.add_argument("--clients-by", choices=["bearing", "condition"], default="bearing")
+    parser.add_argument("--client-partitions", nargs="+", choices=["bearing", "condition"], default=None)
     parser.add_argument(
         "--bearings",
         nargs="+",
@@ -418,6 +443,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stride", type=int, default=4096)
     parser.add_argument("--max-files-per-condition", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seeds", nargs="+", type=int, default=None)
+    parser.add_argument("--evaluate-each-round", action="store_true")
     parser.add_argument("--mat-dir", type=Path, default=PADERBORN_MAT_DIR)
     return parser.parse_args()
 
@@ -432,31 +459,37 @@ def main() -> None:
         window_size=args.window_size,
         stride=args.stride,
     )
-    X = normalize_per_sample(X_raw)
-    clients = build_clients(y, metadata, clients_by=args.clients_by, seed=args.seed)
     fault_idx = np.where(y == 1)[0]
     device = get_device()
     print(f"Using device: {device}")
-    print(f"Clients: {list(clients)}")
     print(f"Fault audit windows: {len(fault_idx)}")
+    X = normalize_per_sample(X_raw)
 
     rows = []
-    for model_name in args.models:
-        rows.extend(
-            run_model(
-                model_name,
-                input_size=args.window_size,
-                X=X,
-                y=y,
-                clients=clients,
-                fault_idx=fault_idx,
-                rounds=args.rounds,
-                local_epochs=args.local_epochs,
-                centralized_epochs=args.centralized_epochs,
-                seed=args.seed,
-                device=device,
-            )
-        )
+    partitions = args.client_partitions or [args.clients_by]
+    seeds = args.seeds or [args.seed]
+    for clients_by in partitions:
+        for seed in seeds:
+            clients = build_clients(y, metadata, clients_by=clients_by, seed=seed)
+            print(f"\nclients_by={clients_by} seed={seed} clients={list(clients)}")
+            for model_name in args.models:
+                rows.extend(
+                    run_model(
+                        model_name,
+                        input_size=args.window_size,
+                        X=X,
+                        y=y,
+                        clients=clients,
+                        clients_by=clients_by,
+                        fault_idx=fault_idx,
+                        rounds=args.rounds,
+                        local_epochs=args.local_epochs,
+                        centralized_epochs=args.centralized_epochs,
+                        seed=seed,
+                        device=device,
+                        evaluate_each_round=args.evaluate_each_round,
+                    )
+                )
 
     metrics_path = os.path.join(OUT_DIR, "federated_fuzzy_metrics.csv")
     write_rows(rows, metrics_path)
